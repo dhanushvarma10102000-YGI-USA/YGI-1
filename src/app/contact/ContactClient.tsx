@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -23,7 +23,7 @@ type FormState = {
   message: string;
 };
 
-const CONTACT_EMAIL = "hello@yourguideinusa.com";
+const CONTACT_EMAIL = "yourguideinusa@gmail.com";
 
 const topics = [
   "General question",
@@ -107,7 +107,7 @@ export default function ContactClient() {
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
     setError("");
