@@ -43,7 +43,12 @@ export const metadata: Metadata = {
     description: DEFAULT_DESCRIPTION,
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/statue-liberty-mark.png", type: "image/png" },
+      { url: "/favicon.ico" },
+    ],
+    apple: "/statue-liberty-mark.png",
+    shortcut: "/statue-liberty-mark.png",
   },
 };
 
