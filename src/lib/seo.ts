@@ -125,8 +125,8 @@ export function buildArticleListJsonLd(
   return {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    name: "International Student Guides & Articles",
-    description: "Practical articles for international students in the USA",
+    name: "Guides & Articles — Complete USA Life Guide",
+    description: "Practical guides for newcomers and students settling in the USA",
     url: absoluteUrl("/blog"),
     itemListElement: articles.slice(0, 20).map((a, i) => ({
       "@type": "ListItem",

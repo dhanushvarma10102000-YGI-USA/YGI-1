@@ -81,6 +81,7 @@ interface Draft {
 }
 interface Store {
   articles: Article[];
+  deletedArticles: Article[];
   counts: Counts;
   loading: { articles: boolean; counts: boolean };
   queue: QueueTopic[];
@@ -88,6 +89,7 @@ interface Store {
   setTab: (t: string) => void;
   onView: (a: Article) => void;
   onDelete: (a: Article) => void;
+  onRestore: (a: Article) => void;
   onPublish: (draft: Draft) => Promise<Article>;
   push: (msg: string, type?: ToastType) => void;
   refresh: () => void;
@@ -178,6 +180,14 @@ function fmtDate(d: Date | string | null): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function fmtDateTime(d: Date | string | null): string {
+  if (!d) return "—";
+  const dt = d instanceof Date ? d : new Date(d);
+  if (isNaN(dt.getTime())) return "—";
+  return dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
+    " · " + dt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
 async function adminApi<T>(input: string, init?: RequestInit): Promise<T> {
@@ -1197,7 +1207,7 @@ function ArticleRow({ a, onView, onDelete }: { a: Article; onView: (a: Article) 
         {a.excerpt && <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 520 }}>{a.excerpt}</div>}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 7 }}>
           <Badge category={a.category} />
-          <span style={{ fontSize: 12, color: "var(--muted-2)", fontFamily: "var(--mono)" }}>{fmtDate(a.date)} · {a.readTime} min read{a.views ? ` · ${a.views.toLocaleString()} views` : ""}</span>
+          <span style={{ fontSize: 12, color: "var(--muted-2)", fontFamily: "var(--mono)" }}>{fmtDateTime(a.date)} · {a.readTime} min read{a.views ? ` · ${a.views.toLocaleString()} views` : ""}</span>
         </div>
       </div>
       <div style={{ display: "flex", gap: 8, opacity: h ? 1 : 0.55, transition: "opacity .15s" }}>
@@ -1220,9 +1230,26 @@ function EmptyState() {
   );
 }
 
+function DeletedRow({ a, onRestore }: { a: Article; onRestore: (a: Article) => void }) {
+  const [h, setH] = useState(false);
+  return (
+    <div onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)} style={{ display: "flex", alignItems: "center", gap: 15, padding: "11px 14px", borderRadius: 12, background: h ? "var(--card-2)" : "transparent", transition: "background .15s", opacity: 0.7 }}>
+      <Thumb article={a} size={44} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.title}</div>
+        <div style={{ fontSize: 12, color: "var(--muted-2)", fontFamily: "var(--mono)", marginTop: 4 }}>
+          <Badge category={a.category} /> &nbsp;deleted this session
+        </div>
+      </div>
+      <Btn variant="ghost" size="sm" onClick={() => onRestore(a)} style={{ opacity: h ? 1 : 0.55, transition: "opacity .15s" }}>Restore</Btn>
+    </div>
+  );
+}
+
 function ArticlesTab({ store }: { store: Store }) {
-  const { articles, loading, refresh, onView, onDelete } = store;
+  const { articles, deletedArticles, loading, refresh, onView, onDelete, onRestore } = store;
   const [filter, setFilter] = useState("All");
+  const [showDeleted, setShowDeleted] = useState(false);
   const cats = ["All", ...CATEGORIES.filter((c) => articles.some((a) => a.category === c))];
   const list = filter === "All" ? articles : articles.filter((a) => a.category === filter);
   return (
@@ -1250,6 +1277,21 @@ function ArticlesTab({ store }: { store: Store }) {
           <div>{list.map((a) => <ArticleRow key={a.id} a={a} onView={onView} onDelete={onDelete} />)}</div>
         )}
       </Card>
+      {deletedArticles.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <button onClick={() => setShowDeleted((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "6px 0", color: "var(--muted)", fontSize: 13, fontWeight: 600 }}>
+            <Icon name="trash" size={14} />
+            Recently Deleted ({deletedArticles.length})
+            <span style={{ fontSize: 11, marginLeft: 2 }}>{showDeleted ? "▲" : "▼"}</span>
+          </button>
+          {showDeleted && (
+            <Card style={{ padding: 8, marginTop: 8, border: "1px dashed var(--border)" }}>
+              <div style={{ padding: "6px 14px 4px", fontSize: 12, color: "var(--muted)" }}>These were deleted this session. Restore puts them back; they won't reappear after a page refresh.</div>
+              {deletedArticles.map((a) => <DeletedRow key={a.id} a={a} onRestore={onRestore} />)}
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -2200,6 +2242,7 @@ export default function AdminPage() {
   const [twoStepError, setTwoStepError] = useState("");
 
   const [articles, setArticles] = useState<Article[]>([]);
+  const [deletedArticles, setDeletedArticles] = useState<Article[]>([]);
   const [counts, setCounts] = useState<Counts>(EMPTY_COUNTS);
   const [loading, setLoading] = useState({ articles: true, counts: true });
   const [queue, setQueue] = useState<QueueTopic[]>(QUEUE_TOPICS);
@@ -2285,19 +2328,28 @@ export default function AdminPage() {
 
   const onView = useCallback((a: Article) => setViewing(a), []);
   const onDelete = useCallback((a: Article) => setPendingDelete(a), []);
+  const onRestore = useCallback((a: Article) => {
+    setDeletedArticles((arr) => arr.filter((x) => x.id !== a.id));
+    setArticles((arr) => [a, ...arr]);
+    setCounts((c) => ({ ...c, articles: c.articles + 1 }));
+  }, []);
 
   const confirmDelete = useCallback(async () => {
     const a = pendingDelete;
     setPendingDelete(null);
     if (!a) return;
     setArticles((arr) => arr.filter((x) => x.id !== a.id));
+    setDeletedArticles((arr) => [{ ...a, deletedAt: new Date() } as Article, ...arr].slice(0, 20));
     const idStr = String(a.id);
     if (idStr.indexOf("local-") !== 0) {
       try {
         await deleteAdminArticle(a.id);
         push("Article deleted", "success");
       } catch (e: any) {
-        push("Delete failed on server: " + e.message, "error");
+        setDeletedArticles((arr) => arr.filter((x) => x.id !== a.id));
+        setArticles((arr) => [a, ...arr]);
+        push("Delete failed: " + e.message, "error");
+        return;
       }
     } else {
       push("Article removed", "success");
@@ -2354,6 +2406,7 @@ export default function AdminPage() {
 
   const store: Store = {
     articles,
+    deletedArticles,
     counts,
     loading,
     queue,
@@ -2361,6 +2414,7 @@ export default function AdminPage() {
     setTab,
     onView,
     onDelete,
+    onRestore,
     onPublish,
     push,
     refresh: () => {

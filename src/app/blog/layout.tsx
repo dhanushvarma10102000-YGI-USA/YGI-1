@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "International Student Guides & Articles",
+  title: "Guides & Articles — Complete USA Life Guide",
   description:
-    "Practical articles for international students in the USA covering visas, OPT, housing, banking, insurance, jobs, city guides, and daily life.",
+    "Practical guides covering housing, banking, visas, jobs, insurance, city life, and everything you need to settle in the USA.",
   alternates: {
     canonical: "/blog",
   },
   openGraph: {
-    title: "International Student Guides & Articles",
+    title: "Guides & Articles — Complete USA Life Guide",
     description:
-      "Read practical USA guides for international students, from visa and OPT basics to housing, banking, jobs, and city life.",
+      "Read practical USA guides on housing, banking, visas, jobs, and daily life for newcomers and students.",
     url: "/blog",
   },
 };

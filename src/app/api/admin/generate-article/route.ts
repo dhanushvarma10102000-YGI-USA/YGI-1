@@ -83,7 +83,16 @@ function parseArticleJSON(text: string, topic: string, category: string) {
   }
 
   const title = String(parsed.title || topic).trim();
-  const content = String(parsed.content || "").trim();
+  let content = String(parsed.content || "").trim();
+  // Guard: if content looks like raw JSON (the AI sometimes nests the whole response), re-extract
+  if (content.startsWith("{") && content.includes('"content"')) {
+    try {
+      const inner = JSON.parse(content);
+      if (typeof inner.content === "string" && inner.content.length > 100) {
+        content = inner.content.trim();
+      }
+    } catch { /* not JSON, use as-is */ }
+  }
   const readTime =
     Number(parsed.readTime) ||
     Math.max(1, Math.round(content.split(/\s+/).filter(Boolean).length / 200));

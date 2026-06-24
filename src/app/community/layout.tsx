@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "International Student Communities in the USA",
+  title: "Communities in the USA — Connect with People Near You",
   description:
-    "Browse university and city communities for international students in the USA. Join groups, ask questions, and connect with students near your campus.",
+    "Browse university and city communities across the USA. Join groups, ask questions, and connect with people near your campus or city.",
   alternates: {
     canonical: "/community",
   },
   openGraph: {
-    title: "International Student Communities in the USA",
+    title: "Communities in the USA — Connect with People Near You",
     description:
-      "Find university and city communities for international students, then join when you are ready to connect.",
+      "Find university and city communities in the USA, then join when you are ready to connect.",
     url: "/community",
   },
 };

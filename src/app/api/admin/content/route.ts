@@ -149,12 +149,17 @@ export async function DELETE(request: Request) {
 
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/${TABLES.articles}?id=eq.${encodeURIComponent(id)}`,
-    { method: "DELETE", headers, cache: "no-store" }
+    {
+      method: "DELETE",
+      headers: { ...headers, Prefer: "return=minimal" },
+      cache: "no-store",
+    }
   );
 
   if (!res.ok) {
+    const errText = await res.text().catch(() => "");
     return NextResponse.json(
-      { error: `Delete failed (${res.status}).` },
+      { error: `Delete failed (${res.status}): ${errText.slice(0, 200)}` },
       { status: 502, headers: { "Cache-Control": "no-store" } }
     );
   }
