@@ -42,6 +42,9 @@ export const metadata: Metadata = {
     title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,
   },
+  verification: {
+    google: "Z3mhEXl9DRBsr2VmS7i_KLvsWNx8P-9NoU2pB2yXevI",
+  },
   icons: {
     icon: [
       { url: "/statue-liberty-mark.png", type: "image/png" },
