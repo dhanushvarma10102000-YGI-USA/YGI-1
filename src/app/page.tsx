@@ -113,7 +113,6 @@ function ReviewCard({ review }: { review: (typeof reviews)[number] }) {
         <div className="yg-avatar" style={{ background: review.color }}>{initials(review.name)}</div>
         <div className="yg-who">
           {review.name}
-          <span>{review.role}</span>
         </div>
       </div>
     </article>

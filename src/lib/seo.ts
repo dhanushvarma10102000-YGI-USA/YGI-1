@@ -2,10 +2,10 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://yourguidei
 
 export const SITE_NAME = "YourGuideInUSA";
 
-export const DEFAULT_TITLE = "YourGuideInUSA - Complete Guide for International Students in the USA";
+export const DEFAULT_TITLE = "YourGuideInUSA - Your Complete Guide to Life in the USA";
 
 export const DEFAULT_DESCRIPTION =
-  "Explore housing, campus life, city guides, banking, insurance, visa help, jobs, and student communities for international students in the USA.";
+  "Explore housing, city guides, campus life, banking, visa help, jobs, and communities for students and newcomers moving to the USA.";
 
 export const SEO_KEYWORDS = [
   "international student guide USA",
