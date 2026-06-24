@@ -91,6 +91,8 @@ interface Store {
   onPublish: (draft: Draft) => Promise<Article>;
   push: (msg: string, type?: ToastType) => void;
   refresh: () => void;
+  prefillTopic: { title: string; category: string } | null;
+  setPrefillTopic: (t: { title: string; category: string } | null) => void;
 }
 type ToastType = "info" | "success" | "error";
 
@@ -1035,20 +1037,41 @@ function OverviewTab({ store }: { store: Store }) {
 /* ============================================================
    TRAFFIC TAB
    ============================================================ */
-function TrafficTab() {
+function TrafficTab({ store }: { store: Store }) {
   const [range, setRange] = useState<"today" | "week" | "month">("week");
-  const d = TRAFFIC[range];
+  const [traffic, setTraffic] = useState(TRAFFIC);
+  const [loading, setLoading] = useState(true);
+  const [gaError, setGaError] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    supabase.auth.getSession().then(({ data: sd }) => {
+      const token = sd.session?.access_token ?? "";
+      return fetch("/api/admin/analytics", {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then((r) => r.json());
+    })
+      .then((data) => {
+        if (data.error) { setGaError(data.error); return; }
+        setTraffic(data);
+      })
+      .catch(() => setGaError("Could not reach analytics API."))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const d = traffic[range];
   const stats = [
-    { label: "Visitors", value: d.visitors, icon: "traffic", accent: "#6366f1" },
-    { label: "Page views", value: d.views, icon: "eye", accent: "#34d399" },
-    { label: "Bounce rate", value: d.bounce, suffix: "%", icon: "arrow", accent: "#fbbf24" },
-    { label: "Avg. time on site", value: d.avgTime, icon: "queue", accent: "#8b5cf6" },
+    { label: "Visitors", value: loading ? "—" : d.visitors, icon: "traffic", accent: "#6366f1" },
+    { label: "Page views", value: loading ? "—" : d.views, icon: "eye", accent: "#34d399" },
+    { label: "Bounce rate", value: loading ? "—" : d.bounce, suffix: loading ? "" : "%", icon: "arrow", accent: "#fbbf24" },
+    { label: "Avg. time on site", value: loading ? "—" : d.avgTime, icon: "queue", accent: "#8b5cf6" },
   ];
+  const sourceColors = ["#6366f1", "#34d399", "#8b5cf6", "#fbbf24", "#f87171", "#38bdf8"];
   return (
     <div className="ygc-fade">
       <PageHeader
         title="Traffic"
-        subtitle="Where your readers come from and what they read."
+        subtitle="Live data from Google Analytics 4."
         actions={
           <div style={{ display: "flex", gap: 4, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: 4 }}>
             {(["today", "week", "month"] as const).map((r) => (
@@ -1057,22 +1080,28 @@ function TrafficTab() {
           </div>
         }
       />
+      {gaError && (
+        <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 10, background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.22)", color: "#ef4444", fontSize: 13.5 }}>
+          <strong>GA4 error:</strong> {gaError}
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 18 }}>
-        {stats.map((s, i) => <StatCard key={i} {...s} sparkData={i < 2 ? TRAFFIC_SERIES : undefined} />)}
+        {stats.map((s, i) => <StatCard key={i} {...s} />)}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 18, marginBottom: 18 }}>
         <Card style={{ padding: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 700, padding: "18px 20px 14px", borderBottom: "1px solid var(--border)" }}>Top pages</h2>
-          {TRAFFIC.topPages.length === 0 ? (
-            <div style={{ padding: 30, color: "var(--muted)", fontSize: 13.5, textAlign: "center" }}>No analytics data connected yet.</div>
+          <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 700, padding: "18px 20px 14px", borderBottom: "1px solid var(--border)" }}>Top pages <span style={{ fontSize: 12, fontWeight: 500, color: "var(--muted)" }}>(last 30 days)</span></h2>
+          {loading ? (
+            <div style={{ padding: 30, color: "var(--muted)", fontSize: 13.5, textAlign: "center" }}>Loading…</div>
+          ) : traffic.topPages.length === 0 ? (
+            <div style={{ padding: 30, color: "var(--muted)", fontSize: 13.5, textAlign: "center" }}>No data yet — add your Measurement ID to start tracking.</div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <tbody>
-                {TRAFFIC.topPages.map((p, i) => (
-                  <tr key={i} style={{ borderBottom: i < TRAFFIC.topPages.length - 1 ? "1px solid var(--border)" : "none" }}>
+                {traffic.topPages.map((p, i) => (
+                  <tr key={i} style={{ borderBottom: i < traffic.topPages.length - 1 ? "1px solid var(--border)" : "none" }}>
                     <td style={{ padding: "12px 20px", fontFamily: "var(--mono)", fontSize: 13, color: "var(--accent-2)" }}>{p.url}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "right", fontSize: 14, fontWeight: 600 }}>{p.views.toLocaleString()}</td>
-                    <td style={{ padding: "12px 20px", textAlign: "right", fontSize: 12.5, fontWeight: 600, color: p.trend >= 0 ? "var(--success)" : "#f87171", width: 70 }}>{p.trend >= 0 ? "▲" : "▼"} {Math.abs(p.trend)}%</td>
+                    <td style={{ padding: "12px 20px", textAlign: "right", fontSize: 14, fontWeight: 600 }}>{p.views.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1081,41 +1110,39 @@ function TrafficTab() {
         </Card>
         <Card style={{ padding: 20 }}>
           <h2 style={{ margin: "0 0 16px", fontSize: 15.5, fontWeight: 700 }}>Traffic sources</h2>
-          {TRAFFIC.sources.length === 0 && <div style={{ color: "var(--muted)", fontSize: 13.5, lineHeight: 1.5 }}>Connect Google Analytics or Search Console to show live sources here.</div>}
-          {TRAFFIC.sources.map((s, i) => {
-            const colors = ["#6366f1", "#34d399", "#8b5cf6", "#fbbf24"];
-            return (
-              <div key={i} style={{ marginBottom: 15 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
-                  <span style={{ color: "var(--text)" }}>{s.name}</span>
-                  <span style={{ color: "var(--muted)", fontFamily: "var(--mono)" }}>{s.pct}%</span>
-                </div>
-                <div style={{ height: 8, borderRadius: 999, background: "rgba(148,163,184,0.18)", overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: s.pct + "%", borderRadius: 999, background: colors[i], transition: "width .8s ease" }} />
-                </div>
+          {loading && <div style={{ color: "var(--muted)", fontSize: 13.5 }}>Loading…</div>}
+          {!loading && traffic.sources.length === 0 && <div style={{ color: "var(--muted)", fontSize: 13.5, lineHeight: 1.5 }}>No source data yet.</div>}
+          {traffic.sources.map((s, i) => (
+            <div key={i} style={{ marginBottom: 15 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+                <span style={{ color: "var(--text)" }}>{s.name}</span>
+                <span style={{ color: "var(--muted)", fontFamily: "var(--mono)" }}>{s.pct}%</span>
               </div>
-            );
-          })}
+              <div style={{ height: 8, borderRadius: 999, background: "rgba(148,163,184,0.18)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: s.pct + "%", borderRadius: 999, background: sourceColors[i % sourceColors.length], transition: "width .8s ease" }} />
+              </div>
+            </div>
+          ))}
         </Card>
       </div>
       <Card style={{ padding: 20, marginBottom: 18 }}>
         <h2 style={{ margin: "0 0 16px", fontSize: 15.5, fontWeight: 700 }}>Top countries</h2>
-        {TRAFFIC.countries.length === 0 ? (
-          <div style={{ color: "var(--muted)", fontSize: 13.5 }}>Country data will appear after analytics is connected.</div>
-        ) : <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-          {TRAFFIC.countries.map((c, i) => (
-            <div key={i} style={{ padding: 16, borderRadius: 12, background: "var(--card)", border: "1px solid var(--border)", textAlign: "center" }}>
-              <div style={{ fontSize: 30 }}>{c.flag}</div>
-              <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 8 }}>{c.name}</div>
-              <div style={{ fontSize: 19, fontWeight: 700, color: "var(--accent-2)", marginTop: 3 }}>{c.pct}%</div>
-            </div>
-          ))}
-        </div>}
+        {loading ? (
+          <div style={{ color: "var(--muted)", fontSize: 13.5 }}>Loading…</div>
+        ) : traffic.countries.length === 0 ? (
+          <div style={{ color: "var(--muted)", fontSize: 13.5 }}>Country data will appear once visitors arrive.</div>
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
+            {traffic.countries.map((c, i) => (
+              <div key={i} style={{ padding: 16, borderRadius: 12, background: "var(--card)", border: "1px solid var(--border)", textAlign: "center" }}>
+                <div style={{ fontSize: 30 }}>{c.flag}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 8 }}>{c.name}</div>
+                <div style={{ fontSize: 19, fontWeight: 700, color: "var(--accent-2)", marginTop: 3 }}>{c.pct}%</div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", borderRadius: 12, background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.22)" }}>
-        <Icon name="info" size={18} color="var(--accent-2)" />
-        <span style={{ fontSize: 13.5, color: "var(--muted)" }}><strong style={{ color: "var(--text)" }}>Tip:</strong> Connect Google Analytics GA4 or Search Console to show live traffic data here.</span>
-      </div>
     </div>
   );
 }
@@ -1258,7 +1285,7 @@ function ArticleViewer({ article, onClose }: { article: Article | null; onClose:
    QUEUE TAB
    ============================================================ */
 function QueueTab({ store }: { store: Store }) {
-  const { queue, setQueue, setTab } = store;
+  const { queue, setQueue, setTab, setPrefillTopic } = store;
   const move = (i: number, dir: number) => {
     setQueue((q) => {
       const next = [...q];
@@ -1299,7 +1326,10 @@ function QueueTab({ store }: { store: Store }) {
                 {isNext && <div style={{ fontSize: 11, fontWeight: 700, color: "var(--success)", marginTop: 3, letterSpacing: 0.5 }}>REVIEW NEXT</div>}
               </div>
               <Badge category={t.category} />
-              <div style={{ display: "flex", gap: 5 }}>
+              <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                <Btn size="sm" variant="primary" onClick={() => { setPrefillTopic({ title: t.title, category: t.category }); setTab("generate"); }} style={{ fontSize: 12, padding: "4px 10px", height: 28 }}>
+                  Write →
+                </Btn>
                 <IconBtn name="up" title="Move up" onClick={() => move(i, -1)} size={14} />
                 <IconBtn name="down" title="Move down" onClick={() => move(i, 1)} size={14} />
                 <IconBtn name="close" title="Remove" danger onClick={() => remove(i)} size={14} />
@@ -1349,7 +1379,7 @@ function LoadingSteps({ active }: { active: number }) {
 }
 
 function GenerateTab({ store }: { store: Store }) {
-  const { onPublish, push } = store;
+  const { onPublish, push, prefillTopic, setPrefillTopic } = store;
   const [topic, setTopic] = useState("");
   const [category, setCategory] = useState("Daily Life");
   const [phase, setPhase] = useState<"idle" | "loading" | "preview" | "published" | "error">("idle");
@@ -1359,6 +1389,17 @@ function GenerateTab({ store }: { store: Store }) {
   const [published, setPublished] = useState<Draft | Article | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
+
+  useEffect(() => {
+    if (prefillTopic) {
+      setTopic(prefillTopic.title);
+      setCategory(prefillTopic.category);
+      setPhase("idle");
+      setDraft(null);
+      setPublished(null);
+      setPrefillTopic(null);
+    }
+  }, [prefillTopic]);
 
   const run = async () => {
     if (!topic.trim()) {
@@ -1804,14 +1845,11 @@ function CommunityTab({ store }: { store: Store }) {
         <StatCard label="Groups" value={data.groups.length || counts.groups} icon="groups" accent="#ec4899" loading={communityLoading && loading.counts} sub="total community groups" />
       </div>
 
-      {/* Main 3-column grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 300px) minmax(0, 1fr) minmax(0, 1fr)", gap: 18, alignItems: "start" }}>
+      {/* Main flex row: [channels 350px] [groups 290px] [detail flex-1] */}
+      <div style={{ display: "flex", gap: 18, alignItems: "stretch", marginBottom: 18 }}>
 
-        {/* ── Column 1: Channels + Moderators ── */}
-        <div style={{ display: "grid", gap: 16, minWidth: 0 }}>
-
-          {/* Official Channels */}
-          <Card style={{ padding: 0, overflow: "hidden" }}>
+        {/* ── Official Channels ── */}
+        <Card style={{ padding: 0, overflow: "hidden", width: 350, flexShrink: 0, display: "flex", flexDirection: "column" }}>
             <div style={{ padding: "16px 18px 14px", borderBottom: "1px solid var(--border)" }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text)", marginBottom: 2 }}>Official Channels</div>
               <div style={{ fontSize: 12, color: "var(--muted)" }}>Broadcast to General or Announcements</div>
@@ -1937,33 +1975,8 @@ function CommunityTab({ store }: { store: Store }) {
             </div>
           </Card>
 
-          {/* Moderator emails */}
-          <Card style={{ padding: 18 }}>
-            <div style={sectionLabel}>Moderator Access</div>
-            <div style={{ fontSize: 12.5, color: "var(--muted)", marginBottom: 12, lineHeight: 1.4 }}>Users who log in with these emails get moderator access to every group.</div>
-            <form onSubmit={(e) => { e.preventDefault(); addModeratorEmail(); }} style={{ display: "flex", gap: 8 }}>
-              <input value={emailDraft} onChange={(e) => setEmailDraft(e.target.value)} placeholder="email@domain.com" style={{ ...fieldInput, height: 38, padding: "0 11px", fontSize: 13 }} />
-              <Btn type="submit" variant="primary" disabled={busy === "add-moderator"} style={{ flexShrink: 0 }}>
-                <Icon name="plus" size={15} color="#fff" />
-              </Btn>
-            </form>
-            <div style={{ display: "grid", gap: 6, marginTop: 10 }}>
-              {data.moderators.filter((m) => m.enabled !== false).map((mod) => (
-                <div key={mod.email} style={{ display: "flex", alignItems: "center", gap: 9, border: "1px solid var(--border)", borderRadius: 10, padding: "8px 10px", background: "var(--card-2)" }}>
-                  <span style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(99,102,241,0.12)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <Icon name="users" size={13} />
-                  </span>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 650, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{mod.email}</span>
-                  <IconBtn name="close" title="Remove" danger size={13} onClick={() => removeModeratorEmail(mod.email)} />
-                </div>
-              ))}
-              {!data.moderators.length && <div style={{ color: "var(--muted)", fontSize: 13, padding: "8px 0" }}>No moderator emails added yet.</div>}
-            </div>
-          </Card>
-        </div>
-
-        {/* ── Column 2: Group browser ── */}
-        <Card style={{ padding: 0, overflow: "hidden" }}>
+        {/* ── Groups browser ── */}
+        <Card style={{ padding: 0, overflow: "hidden", width: 290, flexShrink: 0, display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 800 }}>All Groups</div>
@@ -2001,8 +2014,8 @@ function CommunityTab({ store }: { store: Store }) {
           </div>
         </Card>
 
-        {/* ── Column 3: Group detail panel ── */}
-        <div style={{ display: "grid", gap: 14, minWidth: 0 }}>
+        {/* ── Group detail panel ── */}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
           {selectedGroup ? (
             <>
               {/* Group header */}
@@ -2072,9 +2085,9 @@ function CommunityTab({ store }: { store: Store }) {
                             {msg.body && <div style={{ fontSize: 13.5, color: "var(--muted-2)", lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.body}</div>}
                             {!msg.body && msg.media_url && <div style={{ fontSize: 12.5, color: "var(--muted)", fontStyle: "italic" }}>Image shared</div>}
                           </div>
-                          <button onClick={() => deleteMessage(msg)} title="Delete" style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 7, border: "1px solid transparent", background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}
-                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.08)"; (e.currentTarget as HTMLButtonElement).style.color = "#ef4444"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.2)"; }}
-                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "var(--muted)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}
+                          <button onClick={() => deleteMessage(msg)} title="Delete message" style={{ flexShrink: 0, width: 28, height: 28, borderRadius: 7, border: "1px solid rgba(239,68,68,0.25)", background: "rgba(239,68,68,0.07)", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all .15s" }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.18)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.4)"; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.07)"; (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(239,68,68,0.25)"; }}
                           >
                             <Icon name="trash" size={13} />
                           </button>
@@ -2128,7 +2141,41 @@ function CommunityTab({ store }: { store: Store }) {
             </Card>
           )}
         </div>
-      </div>
+      </div>{/* end main flex row */}
+
+      {/* ── Moderator Access ── */}
+      <Card style={{ padding: 22 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+          <span style={{ width: 38, height: 38, borderRadius: 11, background: "rgba(99,102,241,0.12)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Icon name="users" size={18} />
+          </span>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>Moderator Access</div>
+            <div style={{ fontSize: 13, color: "var(--muted)", marginTop: 2 }}>Users who log in with these emails get moderator access to every group.</div>
+          </div>
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); addModeratorEmail(); }} style={{ display: "flex", gap: 10, maxWidth: 560, marginBottom: 14 }}>
+          <input value={emailDraft} onChange={(e) => setEmailDraft(e.target.value)} placeholder="email@domain.com" style={{ ...fieldInput, flex: 1, height: 42, padding: "0 13px", fontSize: 14 }} />
+          <Btn type="submit" variant="primary" disabled={busy === "add-moderator"} style={{ flexShrink: 0, height: 42, padding: "0 22px" }}>Add</Btn>
+        </form>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 560 }}>
+          {data.moderators.filter((m) => m.enabled !== false).map((mod) => (
+            <div key={mod.email} style={{ display: "flex", alignItems: "center", gap: 12, background: "var(--card-2)", border: "1px solid var(--border)", borderRadius: 11, padding: "11px 14px" }}>
+              <span style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(99,102,241,0.12)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Icon name="users" size={15} />
+              </span>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{mod.email}</span>
+              <button onClick={() => removeModeratorEmail(mod.email)} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", color: "#ef4444", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 9, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.06)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
+              >
+                <Icon name="close" size={13} /> Remove
+              </button>
+            </div>
+          ))}
+          {!data.moderators.length && <div style={{ color: "var(--muted)", fontSize: 13 }}>No moderator emails added yet.</div>}
+        </div>
+      </Card>
     </div>
   );
 }
@@ -2156,6 +2203,7 @@ export default function AdminPage() {
   const [counts, setCounts] = useState<Counts>(EMPTY_COUNTS);
   const [loading, setLoading] = useState({ articles: true, counts: true });
   const [queue, setQueue] = useState<QueueTopic[]>(QUEUE_TOPICS);
+  const [prefillTopic, setPrefillTopic] = useState<{ title: string; category: string } | null>(null);
 
   const { push, node: toastNode } = useToasts();
   const [viewing, setViewing] = useState<Article | null>(null);
@@ -2318,6 +2366,8 @@ export default function AdminPage() {
     refresh: () => {
       loadAdminData();
     },
+    prefillTopic,
+    setPrefillTopic,
   };
 
   const sidebarCounts = { articles: counts.articles, queue: queue.length };
