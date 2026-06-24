@@ -690,7 +690,6 @@ export default function AllGroupsDesign({
                 </div>
               </div>
 
-              <Ticker group={selected} quiet={selectedQuiet} active={Boolean(selected)} />
             </div>
             <div className="m-foot">
               <button ref={joinButtonRef} className={`joinbtn ${joinState}`} type="button" onClick={handleJoin}>
