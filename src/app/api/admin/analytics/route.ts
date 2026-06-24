@@ -7,17 +7,23 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GA4_API = "https://analyticsdata.googleapis.com/v1beta/properties";
 
 function normalizePEM(raw: string): string {
-  // Replace literal \n sequences (as stored in env vars)
-  let pem = raw.replace(/\\n/g, "\n").replace(/\r/g, "").trim();
-  // If still no real newlines, reconstruct from a flat base64 blob
-  if (!pem.includes("\n")) {
-    const begin = pem.match(/-----BEGIN [^-]+-----/)?.[0] ?? "";
-    const end = pem.match(/-----END [^-]+-----/)?.[0] ?? "";
-    const b64 = pem.replace(begin, "").replace(end, "").replace(/\s/g, "");
-    const wrapped = b64.match(/.{1,64}/g)?.join("\n") ?? b64;
-    pem = `${begin}\n${wrapped}\n${end}`;
+  // Strip surrounding quotes (common paste mistake)
+  let s = raw.trim().replace(/^["']|["']$/g, "");
+  // Normalize all newline representations to real newlines
+  s = s.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").replace(/\r/g, "").trim();
+
+  const header = s.match(/-----BEGIN[^-]*-----/)?.[0];
+  const footer = s.match(/-----END[^-]*-----/)?.[0];
+  if (!header || !footer) {
+    throw new Error(
+      "GA_PRIVATE_KEY is missing PEM header/footer — check the Vercel environment variable."
+    );
   }
-  return pem;
+
+  // Always reconstruct to guarantee clean 64-char-wrapped base64
+  const body = s.replace(header, "").replace(footer, "").replace(/\s+/g, "");
+  const wrapped = (body.match(/.{1,64}/g) ?? []).join("\n");
+  return `${header}\n${wrapped}\n${footer}`;
 }
 
 function makeJWT(email: string, rawKey: string): string {
@@ -209,6 +215,13 @@ export async function GET(req: Request) {
       countries,
     });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message ?? "Unknown error" }, { status: 500 });
+    const raw = process.env.GA_PRIVATE_KEY ?? "";
+    const keyHint = raw.length === 0
+      ? "GA_PRIVATE_KEY is empty"
+      : `key length=${raw.length}, starts="${raw.slice(0, 27)}..."`;
+    return NextResponse.json(
+      { error: `${err.message ?? "Unknown error"} [${keyHint}]` },
+      { status: 500 }
+    );
   }
 }
