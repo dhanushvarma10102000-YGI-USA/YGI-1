@@ -113,6 +113,7 @@ export async function POST(request: Request) {
       content,
       slug,
       read_time: Number(body?.read_time) || 1,
+      ...(body?.image_url ? { image_url: String(body.image_url) } : {}),
     }),
   });
 

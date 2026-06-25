@@ -72,6 +72,7 @@ interface Draft {
   readTime: number;
   content: string;
   slug: string;
+  image_url?: string;
   date?: Date;
   searchIntent?: string;
   trafficAngle?: string;
@@ -324,6 +325,7 @@ async function generateArticle({
     readTime: data.readTime,
     content: data.content,
     slug: data.slug,
+    image_url: data.image_url || "",
     searchIntent: data.searchIntent,
     trafficAngle: data.trafficAngle,
     reviewChecklist: Array.isArray(data.reviewChecklist) ? data.reviewChecklist : [],
@@ -2366,6 +2368,7 @@ export default function AdminPage() {
         content: draft.content,
         slug: draft.slug,
         read_time: draft.readTime,
+        image_url: draft.image_url || undefined,
       });
       if (!row) throw new Error("Supabase did not return the published article.");
       const saved = normalizeArticle(row);

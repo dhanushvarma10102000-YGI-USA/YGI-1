@@ -192,5 +192,27 @@ Return ONLY valid JSON with this exact shape:
 
   const data = await res.json();
   const text = (data.content || []).map((block: any) => block.text || "").join("");
-  return NextResponse.json(parseArticleJSON(text, topic, category));
+  const article = parseArticleJSON(text, topic, category);
+
+  // Fetch a Pexels image using the topic as the search query
+  let image_url = "";
+  const pexelsKey = process.env.PEXELS_API_KEY;
+  if (pexelsKey) {
+    try {
+      const imgRes = await fetch(
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent(topic)}&per_page=5&orientation=landscape`,
+        { headers: { Authorization: pexelsKey } }
+      );
+      if (imgRes.ok) {
+        const imgData = await imgRes.json();
+        const photos = imgData.photos ?? [];
+        if (photos.length) {
+          const photo = photos[Math.floor(Math.random() * photos.length)];
+          image_url = photo.src?.large ?? "";
+        }
+      }
+    } catch { /* image is optional */ }
+  }
+
+  return NextResponse.json({ ...article, image_url });
 }
