@@ -1184,6 +1184,9 @@ create policy stories_insert_own on public.stories for insert with check (auth.u
 drop policy if exists stories_delete_own on public.stories;
 create policy stories_delete_own on public.stories for delete using (auth.uid() = user_id);
 
+drop policy if exists stories_update_own on public.stories;
+create policy stories_update_own on public.stories for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 -- ---------------------------------------------------------------------------
 -- Story votes (prevents duplicate upvotes)
 -- ---------------------------------------------------------------------------

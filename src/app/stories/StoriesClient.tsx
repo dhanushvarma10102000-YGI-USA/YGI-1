@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Nav } from "@/components/ds/Nav";
 import { supabase } from "@/lib/supabase";
 
-type View = "feed" | "story" | "form";
+type View = "feed" | "story" | "form" | "mystories";
 type RedditPost = {
   id: string;
   title: string;
@@ -46,6 +46,12 @@ type Story = {
   category: string;
   daysAgo: number;
 };
+type EditableStory = {
+  id: string; title: string; body_html: string | null; category: string | null;
+  city: string | null; uni: string | null; anon: boolean; display_name: string | null;
+  created_at: string; upvotes: number; excerpt: string | null;
+};
+
 type ReplyData = {
   id: number;
   initials: string;
@@ -282,6 +288,8 @@ const CSS = `
 .sy-drop-item:hover { background:#f4f0e8 !important; }
 .sy-see-all:hover { text-decoration:underline; }
 .sy-search-sug:hover { background:#f4f0e8 !important; }
+.sy-ms-edit:hover { background:#e6f0ee !important; border-color:#0f6f67 !important; }
+.sy-ms-delete:hover { background:#fdecea !important; border-color:#d4433a !important; color:#d4433a !important; }
 .sy-sort-chip { transition:background .12s,border-color .12s; }
 .sy-sort-chip:hover { border-color:#0f6f67 !important; }
 [contenteditable][data-placeholder]:empty:before { content:attr(data-placeholder); color:#a8a195; pointer-events:none; }
@@ -551,16 +559,18 @@ function SearchSuggestions({ query, onSelect, onClose, stories }: {
    FEED VIEW
 ═══════════════════════════════════════ */
 function FeedView({
-  onShareStory, onOpenStory,
-  upvoteCounts, votedIds, onToggleVote, stories, storiesLoading,
+  onShareStory, onOpenStory, onMyStories,
+  upvoteCounts, votedIds, onToggleVote, stories, storiesLoading, user,
 }: {
   onShareStory: () => void;
   onOpenStory: (idx: number) => void;
+  onMyStories: () => void;
   upvoteCounts: number[];
   votedIds: Set<string>;
   onToggleVote: (id: string, idx: number) => void;
   stories: Story[];
   storiesLoading: boolean;
+  user: { id: string } | null;
 }) {
   const [feedSource, setFeedSource] = useState<"local" | "reddit">("local");
   const [redditPosts, setRedditPosts] = useState<RedditPost[]>([]);
@@ -711,9 +721,18 @@ function FeedView({
           <h1 style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: "clamp(26px,3.5vw,40px)", fontWeight: 600, color: "#221f1b", margin: 0, lineHeight: 1.05, letterSpacing: "-0.02em" }}>Journeys</h1>
           <p style={{ fontSize: 14.5, color: "#8a8378", margin: "7px 0 0", lineHeight: 1.5 }}>Real experiences from people finding their footing in the U.S.</p>
         </div>
-        <button onClick={onShareStory} className="sy-btn-teal" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0f6f67", color: "#fff", border: "none", borderRadius: 11, padding: "11px 22px", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 8px rgba(15,111,103,0.28)", fontFamily: "inherit", flexShrink: 0 }}>
-          <IconPencil /> Share your story
-        </button>
+        <div style={{ display: "flex", gap: 10, flexShrink: 0 }}>
+          {user && (
+            <button onClick={onMyStories} style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#fff", color: "#0f6f67", border: "1px solid #c8dedd", borderRadius: 11, padding: "11px 20px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "background .15s" }}
+              onMouseOver={(e) => (e.currentTarget.style.background = "#e9f0ee")}
+              onMouseOut={(e) => (e.currentTarget.style.background = "#fff")}>
+              📖 My Stories
+            </button>
+          )}
+          <button onClick={onShareStory} className="sy-btn-teal" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0f6f67", color: "#fff", border: "none", borderRadius: 11, padding: "11px 22px", fontSize: 14, fontWeight: 600, cursor: "pointer", boxShadow: "0 2px 8px rgba(15,111,103,0.28)", fontFamily: "inherit" }}>
+            <IconPencil /> Share your story
+          </button>
+        </div>
       </div>
 
       {/* 3-col */}
@@ -1462,6 +1481,102 @@ function StoryView({ onBack, onShareStory }: { onBack: () => void; onShareStory:
 }
 
 /* ═══════════════════════════════════════
+   MY STORIES VIEW
+═══════════════════════════════════════ */
+function MyStoriesView({ user, onBack, onEdit }: {
+  user: { id: string; email?: string } | null;
+  onBack: () => void;
+  onEdit: (story: EditableStory) => void;
+}) {
+  const [myStories, setMyStories] = useState<EditableStory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [toast, setToast] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("stories").select("*").eq("user_id", user.id).order("created_at", { ascending: false })
+      .then(({ data }) => { setMyStories((data ?? []) as EditableStory[]); setLoading(false); });
+  }, [user]);
+
+  const deleteStory = async (id: string) => {
+    if (!window.confirm("Delete this story? This cannot be undone.")) return;
+    setDeleting(id);
+    await supabase.from("stories").delete().eq("id", id);
+    setMyStories((prev) => prev.filter((s) => s.id !== id));
+    setDeleting(null);
+    setToast("Story deleted.");
+  };
+
+  function msTimeAgo(iso: string) {
+    const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
+    return days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
+  }
+
+  return (
+    <div className="sy-frame">
+      {toast && <Toast msg={toast} onDone={() => setToast("")} />}
+      <button onClick={onBack} className="sy-back-btn" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "none", border: "none", fontSize: 13.5, fontWeight: 600, color: "#8a8378", cursor: "pointer", padding: 0, marginBottom: 28, fontFamily: "inherit" }}>
+        <IconBack /> Back to journeys
+      </button>
+      <div style={{ maxWidth: 680, margin: "0 auto" }}>
+        <h2 style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: 30, fontWeight: 600, color: "#1f1c18", margin: "0 0 6px", letterSpacing: "-0.01em" }}>My Journeys</h2>
+        <p style={{ fontSize: 14.5, color: "#8a8378", margin: "0 0 26px" }}>Stories you&rsquo;ve shared. Edit or delete anytime.</p>
+
+        {loading ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {[1, 2, 3].map((i) => (
+              <div key={i} style={{ background: "#fff", border: "1px solid #ece6dc", borderRadius: 16, padding: "18px 20px", animation: "pulse 1.4s ease-in-out infinite" }}>
+                <div style={{ height: 12, background: "#f0ebe0", borderRadius: 6, width: "20%", marginBottom: 10 }} />
+                <div style={{ height: 20, background: "#f0ebe0", borderRadius: 6, width: "75%", marginBottom: 8 }} />
+                <div style={{ height: 13, background: "#f0ebe0", borderRadius: 6, width: "55%" }} />
+              </div>
+            ))}
+          </div>
+        ) : myStories.length === 0 ? (
+          <div style={{ background: "#fff", border: "1px solid #ece6dc", borderRadius: 18, padding: "48px 28px", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 14 }}>✍️</div>
+            <p style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: 20, fontWeight: 600, color: "#221f1b", margin: "0 0 10px" }}>No stories yet</p>
+            <p style={{ fontSize: 14, color: "#8a8378", margin: "0 0 22px", lineHeight: 1.55 }}>Share your first journey — someone new to the U.S. is looking for exactly your experience.</p>
+            <button onClick={onBack} className="sy-btn-teal" style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0f6f67", color: "#fff", border: "none", borderRadius: 11, padding: "11px 22px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+              Back to feed
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {myStories.map((s) => (
+              <div key={s.id} style={{ background: "#fff", border: "1px solid #ece6dc", borderRadius: 16, padding: "18px 20px", display: "flex", alignItems: "flex-start", gap: 14 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                    {s.category && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "#e6f0ee", color: "#0b544e" }}>{s.category}</span>}
+                    {s.city && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 999, background: "#f1ece3", color: "#6f685c" }}>📍 {s.city}</span>}
+                    {s.anon && <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 9px", borderRadius: 999, background: "#f5f0e8", color: "#8a8378" }}>Anonymous</span>}
+                  </div>
+                  <h3 style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: 19, fontWeight: 600, color: "#221f1b", margin: "0 0 6px", lineHeight: 1.25 }}>{s.title}</h3>
+                  {s.excerpt && <p style={{ fontSize: 13.5, color: "#69605a", margin: 0, lineHeight: 1.55, display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflow: "hidden" }}>{s.excerpt}</p>}
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 10, fontSize: 12.5, color: "#9a9082" }}>
+                    <span>{msTimeAgo(s.created_at)}</span>
+                    <span>▲ {s.upvotes} upvotes</span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+                  <button onClick={() => onEdit(s)} className="sy-ms-edit" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1px solid #d6cfc0", background: "#fff", fontSize: 13, fontWeight: 600, color: "#0f6f67", cursor: "pointer", fontFamily: "inherit", transition: "all .15s" }}>
+                    ✏️ Edit
+                  </button>
+                  <button onClick={() => deleteStory(s.id)} disabled={deleting === s.id} className="sy-ms-delete" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 9, border: "1px solid #d6cfc0", background: "#fff", fontSize: 13, fontWeight: 600, color: "#8a8378", cursor: deleting === s.id ? "default" : "pointer", fontFamily: "inherit", transition: "all .15s", opacity: deleting === s.id ? 0.5 : 1 }}>
+                    {deleting === s.id ? "Deleting…" : "🗑 Delete"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════
    FORM VIEW
 ═══════════════════════════════════════ */
 function sanitizeStoryHtml(html: string): string {
@@ -1481,16 +1596,17 @@ function sanitizeStoryHtml(html: string): string {
   return tmp.innerHTML;
 }
 
-function FormView({ onBack, onPublish, user }: { onBack: () => void; onPublish: (story: Story) => void; user: { id: string; email?: string; user_metadata?: Record<string, string> } | null }) {
-  const [anon, setAnon] = useState(true);
-  const [title, setTitle] = useState("");
-  const [uniQuery, setUniQuery] = useState("");
-  const [cityQuery, setCityQuery] = useState("");
+function FormView({ onBack, onPublish, user, initialData }: { onBack: () => void; onPublish: (story: Story, editedId?: string) => void; user: { id: string; email?: string; user_metadata?: Record<string, string> } | null; initialData?: EditableStory }) {
+  const isEdit = !!initialData?.id;
+  const [anon, setAnon] = useState(initialData?.anon ?? true);
+  const [title, setTitle] = useState(initialData?.title ?? "");
+  const [uniQuery, setUniQuery] = useState(initialData?.uni ?? "");
+  const [cityQuery, setCityQuery] = useState(initialData?.city ?? "");
   const [showUniDrop, setShowUniDrop] = useState(false);
   const [showCityDrop, setShowCityDrop] = useState(false);
-  const [selectedUni, setSelectedUni] = useState("");
-  const [selectedCity, setSelectedCity] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedUni, setSelectedUni] = useState(initialData?.uni ?? "");
+  const [selectedCity, setSelectedCity] = useState(initialData?.city ?? "");
+  const [selectedCategory, setSelectedCategory] = useState(initialData?.category ?? "");
   const [catOpen, setCatOpen] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [toast, setToast] = useState("");
@@ -1508,6 +1624,13 @@ function FormView({ onBack, onPublish, user }: { onBack: () => void; onPublish: 
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  useEffect(() => {
+    if (initialData?.body_html && editorRef.current) {
+      editorRef.current.innerHTML = sanitizeStoryHtml(initialData.body_html);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const uniSuggestions = uniQuery ? UNIS.filter((u) => u.name.toLowerCase().includes(uniQuery.toLowerCase())).slice(0, 5) : [];
@@ -1570,21 +1693,22 @@ function FormView({ onBack, onPublish, user }: { onBack: () => void; onPublish: 
       daysAgo: 0,
     };
     if (user) {
-      await supabase.from("stories").insert({
-        user_id: user.id,
-        title: title.trim(),
-        excerpt,
-        body_html: bodyHtml,
-        category: selectedCategory || null,
-        city: selectedCity || null,
-        uni: selectedUni || null,
-        anon,
-        read_time: readTime,
-        display_name: displayName,
-      });
+      if (isEdit && initialData?.id) {
+        await supabase.from("stories").update({
+          title: title.trim(), excerpt, body_html: bodyHtml,
+          category: selectedCategory || null, city: selectedCity || null,
+          uni: selectedUni || null, anon, read_time: readTime, display_name: displayName,
+        }).eq("id", initialData.id);
+      } else {
+        await supabase.from("stories").insert({
+          user_id: user.id, title: title.trim(), excerpt, body_html: bodyHtml,
+          category: selectedCategory || null, city: selectedCity || null,
+          uni: selectedUni || null, anon, read_time: readTime, display_name: displayName,
+        });
+      }
     }
-    setToast("Story published!");
-    setTimeout(() => onPublish(story), 1400);
+    setToast(isEdit ? "Story updated!" : "Story published!");
+    setTimeout(() => onPublish(story, isEdit ? initialData?.id : undefined), 1400);
   };
 
   return (
@@ -1595,8 +1719,8 @@ function FormView({ onBack, onPublish, user }: { onBack: () => void; onPublish: 
       </button>
 
       <div style={{ maxWidth: 680, margin: "0 auto", background: "#fff", border: "1px solid #ece6dc", borderRadius: 18, padding: 36, boxShadow: "0 2px 8px rgba(40,33,20,0.04)" }}>
-        <h2 style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: 30, fontWeight: 600, color: "#1f1c18", margin: "0 0 6px", letterSpacing: "-0.01em" }}>Share your story</h2>
-        <p style={{ fontSize: 14.5, color: "#8a8378", margin: "0 0 30px", lineHeight: 1.5 }}>Your experience could be the thing that helps someone else feel less alone. Take your time — there&rsquo;s no wrong way to tell it.</p>
+        <h2 style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: 30, fontWeight: 600, color: "#1f1c18", margin: "0 0 6px", letterSpacing: "-0.01em" }}>{isEdit ? "Edit your story" : "Share your story"}</h2>
+        <p style={{ fontSize: 14.5, color: "#8a8378", margin: "0 0 30px", lineHeight: 1.5 }}>{isEdit ? "Update your story below. Changes will be live immediately." : "Your experience could be the thing that helps someone else feel less alone. Take your time — there’s no wrong way to tell it."}</p>
 
         <div style={{ marginBottom: 24 }}>
           <label style={{ display: "block", fontSize: 13.5, fontWeight: 600, color: "#3a362f", marginBottom: 8 }}>Title</label>
@@ -1701,7 +1825,7 @@ function FormView({ onBack, onPublish, user }: { onBack: () => void; onPublish: 
 
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
           <button onClick={saveDraft} className="sy-draft-btn" style={{ background: "#fff", border: "1px solid #d6cfc0", borderRadius: 11, padding: "12px 22px", fontSize: 14, fontWeight: 600, color: "#46423a", cursor: "pointer", fontFamily: "inherit" }}>Save as draft</button>
-          <button onClick={publish} className="sy-btn-teal" style={{ background: "#0f6f67", border: "none", borderRadius: 11, padding: "12px 26px", fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(15,111,103,0.25)" }}>Publish story</button>
+          <button onClick={publish} className="sy-btn-teal" style={{ background: "#0f6f67", border: "none", borderRadius: 11, padding: "12px 26px", fontSize: 14, fontWeight: 700, color: "#fff", cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 8px rgba(15,111,103,0.25)" }}>{isEdit ? "Save changes" : "Publish story"}</button>
         </div>
       </div>
     </div>
@@ -1715,6 +1839,7 @@ const NUDGE_KEY = "ygiu_stories_nudge_dismissed";
 
 export default function StoriesClient() {
   const [view, setView] = useState<View>("feed");
+  const [editStory, setEditStory] = useState<EditableStory | null>(null);
   const [toast, setToast] = useState("");
   const [stories, setStories] = useState<Story[]>(EMPTY_STORIES);
   const [storiesLoading, setStoriesLoading] = useState(true);
@@ -1758,6 +1883,7 @@ export default function StoriesClient() {
 
   const openForm = useCallback(() => {
     if (!user) { setShowLoginWall(true); return; }
+    setEditStory(null);
     setView("form");
   }, [user]);
 
@@ -1801,23 +1927,37 @@ export default function StoriesClient() {
             <FeedView
               onShareStory={openForm}
               onOpenStory={() => setView("story")}
+              onMyStories={() => setView("mystories")}
               upvoteCounts={upvoteCounts}
               votedIds={votedIds}
               onToggleVote={toggleStoryVote}
               stories={stories}
               storiesLoading={storiesLoading}
+              user={user}
             />
           )}
           {view === "story" && <StoryView onBack={() => setView("feed")} onShareStory={openForm} />}
+          {view === "mystories" && (
+            <MyStoriesView
+              user={user}
+              onBack={() => setView("feed")}
+              onEdit={(story) => { setEditStory(story); setView("form"); }}
+            />
+          )}
           {view === "form" && (
             <FormView
-              onBack={() => setView("feed")}
+              onBack={() => editStory ? setView("mystories") : setView("feed")}
               user={user}
-              onPublish={(story) => {
-                setStories((prev) => [story, ...prev]);
-                setUpvoteCounts((prev) => [0, ...prev]);
-                setView("feed");
-                setToast("Your journey is live!");
+              initialData={editStory ?? undefined}
+              onPublish={(story, editedId) => {
+                if (editedId) {
+                  setStories((prev) => prev.map((s) => s.id === editedId ? { ...s, ...story } : s));
+                } else {
+                  setStories((prev) => [story, ...prev]);
+                  setUpvoteCounts((prev) => [0, ...prev]);
+                }
+                setView(editedId ? "mystories" : "feed");
+                setToast(editedId ? "Story updated!" : "Your journey is live!");
                 loadStories();
               }}
             />
