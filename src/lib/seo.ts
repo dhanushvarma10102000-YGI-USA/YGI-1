@@ -1,23 +1,23 @@
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://yourguideinusa.com").replace(/\/$/, "");
 
-export const SITE_NAME = "YourGuideInUSA";
+export const SITE_NAME = "Your Guide In USA";
 
-export const DEFAULT_TITLE = "YourGuideInUSA - Your Complete Guide to Life in the USA";
+export const DEFAULT_TITLE = "Your Guide In USA — City Guides, Visas, Housing & Student Community";
 
 export const DEFAULT_DESCRIPTION =
-  "Explore housing, city guides, campus life, banking, visa help, jobs, and communities for students and newcomers moving to the USA.";
+  "Your Guide In USA helps international students and newcomers explore US cities, find housing, understand visas, open bank accounts, and connect with community. Free, practical advice for life in the USA.";
 
 export const SEO_KEYWORDS = [
+  "your guide in USA",
+  "guide to living in USA",
   "international student guide USA",
   "study in USA guide",
   "F1 visa student guide",
   "housing for international students",
   "USA city guide for students",
-  "international student community",
-  "student housing near universities",
-  "new students in USA",
+  "newcomer guide USA",
   "move to USA guide",
-  "YourGuideInUSA",
+  "life in USA guide",
 ];
 
 export function absoluteUrl(path = "/") {

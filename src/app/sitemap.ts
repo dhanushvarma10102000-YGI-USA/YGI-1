@@ -12,6 +12,7 @@ const routes: Array<{
   { path: "/guide", changeFrequency: "weekly", priority: 0.95 },
   { path: "/community", changeFrequency: "daily", priority: 0.9 },
   { path: "/blog", changeFrequency: "weekly", priority: 0.85 },
+  { path: "/stories", changeFrequency: "daily", priority: 0.88 },
   { path: "/contact", changeFrequency: "monthly", priority: 0.55 },
   { path: "/privacy", changeFrequency: "yearly", priority: 0.25 },
 ];
