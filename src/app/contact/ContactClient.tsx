@@ -153,7 +153,7 @@ export default function ContactClient() {
 
       <section className="relative overflow-hidden border-b border-[#e3e1db] bg-[#f6f5f2] pt-28">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(47,143,134,.16),transparent_26%),radial-gradient(circle_at_85%_10%,rgba(194,104,63,.12),transparent_25%)]" />
-        <div className="relative mx-auto grid max-w-[1180px] gap-10 px-5 pb-16 pt-10 md:grid-cols-[1fr_360px] md:px-8 md:pb-20">
+        <div className="relative mx-auto grid max-w-[1700px] gap-10 px-5 pb-16 pt-10 md:grid-cols-[1fr_360px] md:px-8 md:pb-20">
           <div>
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#e3e1db] bg-white px-3 py-1.5 text-xs font-bold uppercase text-[#2f8f86] shadow-[0_18px_36px_-30px_rgba(30,28,22,.4)]">
               <MessageSquareText className="h-4 w-4" />
@@ -190,7 +190,7 @@ export default function ContactClient() {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-[1180px] gap-8 px-5 py-12 md:px-8 lg:grid-cols-[0.82fr_1.18fr]">
+      <section className="mx-auto grid max-w-[1700px] gap-8 px-5 py-12 md:px-8 lg:grid-cols-[0.82fr_1.18fr]">
         <aside className="space-y-4">
           {contactCards.map((card) => {
             const Icon = card.icon;
@@ -328,7 +328,7 @@ export default function ContactClient() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1180px] px-5 pb-6 md:px-8">
+      <section className="mx-auto max-w-[1700px] px-5 pb-6 md:px-8">
         <div className="grid gap-4 rounded-[18px] border border-[#e3e1db] bg-[#f6f5f2] p-5 sm:grid-cols-3 sm:p-6">
           {faqs.map((item) => (
             <div key={item.q} className="rounded-[12px] bg-white p-5 ring-1 ring-[#e3e1db]">
@@ -339,7 +339,7 @@ export default function ContactClient() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1180px] px-5 pb-4 md:px-8">
+      <section className="mx-auto max-w-[1700px] px-5 pb-4 md:px-8">
         <a
           href="/guide"
           className="flex flex-col justify-between gap-4 rounded-[18px] border border-[#d8d5cc] bg-[#1a1916] p-6 text-white shadow-[0_32px_70px_-52px_rgba(0,0,0,.75)] transition hover:-translate-y-0.5 sm:flex-row sm:items-center"

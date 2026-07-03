@@ -538,39 +538,6 @@ export default function AllGroupsDesign({
 
       <div className="shell">
         <div className="panel">
-          <nav>
-            <a className="brand" href="/">
-              <span className="mark"><img src="/statue-liberty-mark.png" alt="" /></span>
-              yourguideinusa
-            </a>
-            <div className="navlinks">
-              <a href="/">Home</a>
-              <a href="/guide">Guide</a>
-              <a href="/blog">Blogs</a>
-              <a href="/community" className="active">Community</a>
-              <a href="/contact">Contact us</a>
-            </div>
-            <div className="navtools">
-              <button className="dash-btn" type="button" onClick={openDashboard}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                  <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                  <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                  <rect x="14" y="14" width="7" height="7" rx="1.5" />
-                </svg>
-                Dashboard
-              </button>
-              <button className="icon-btn" type="button" aria-label="Account" onClick={() => (user ? onOpenSettings?.() : (window.location.href = "/login"))}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 4-6 8-6s8 2 8 6" /></svg>
-              </button>
-              {user ? (
-                <button className="icon-btn" type="button" aria-label="Sign out" onClick={onSignOut}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 17l5-5-5-5" /><path d="M20 12H9" /><path d="M12 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6" /></svg>
-                </button>
-              ) : null}
-            </div>
-          </nav>
-
           <div className="ghead">
             <div>
               <div className="eyebrow">Community</div>
@@ -582,6 +549,15 @@ export default function AllGroupsDesign({
                 <SearchSvg />
                 <input value={query} onChange={(event) => setQuery(event.target.value)} type="text" placeholder="Find a group..." autoComplete="off" />
               </div>
+              {user && (
+                <button className="dash-btn" type="button" onClick={openDashboard}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" width="15" height="15">
+                    <rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" />
+                    <rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" />
+                  </svg>
+                  Dashboard
+                </button>
+              )}
               <button className="btn btn-accent" type="button" onClick={openCreate}><PlusSvg />Create group</button>
             </div>
           </div>
@@ -860,65 +836,33 @@ const groupsDesignCss = `
     line-height:1.5;
   }
   .yg-groups-design .mono{font-family:'JetBrains Mono',monospace;}
-  .yg-groups-design .shell{max-width:1480px;margin:0 auto 40px;padding:0 16px 16px;}
+  .yg-groups-design .shell{max-width:1920px;margin:0 auto 40px;padding:0 clamp(12px,2vw,32px) 16px;}
   .yg-groups-design .panel{
     background:linear-gradient(180deg,#fbfaf8 0%,var(--panel) 60%,var(--panel-2) 100%);
-    border-radius:30px;
-    box-shadow:0 40px 80px -50px rgba(30,28,22,.4),0 2px 0 rgba(255,255,255,.6) inset;
+    border-radius:0;
     position:relative;overflow:hidden;
-    min-height:calc(100vh - 90px);
+    min-height:calc(100vh - 70px);
     display:flex;flex-direction:column;
   }
-  .yg-groups-design nav{
-    display:flex;align-items:center;justify-content:space-between;
-    padding:26px 40px;position:relative;z-index:30;
-  }
-  .yg-groups-design .brand{display:flex;align-items:center;gap:11px;font-weight:700;font-size:20px;letter-spacing:-.02em;text-decoration:none;color:var(--ink)}
-  .yg-groups-design .brand .mark{
-    width:30px;height:30px;border-radius:9px;
-    background:conic-gradient(from 200deg,var(--accent),#7fc9c0,var(--accent));
-    display:grid;place-items:center;color:#fff;overflow:hidden;
-    box-shadow:0 4px 10px -3px rgba(47,143,134,.6);
-  }
-  .yg-groups-design .brand .mark img{width:22px;height:25px;object-fit:contain;filter:drop-shadow(0 1px 1px rgba(0,0,0,.18))}
-  .yg-groups-design .navlinks{display:flex;gap:34px;align-items:center}
-  .yg-groups-design .navlinks a{
-    color:var(--ink-soft);text-decoration:none;font-size:15px;font-weight:500;
-    position:relative;transition:color .2s;
-  }
-  .yg-groups-design .navlinks a:hover,.yg-groups-design .navlinks a.active{color:var(--ink)}
-  .yg-groups-design .navlinks a::after{
-    content:"";position:absolute;left:0;bottom:-6px;height:2px;width:0;
-    background:var(--accent);transition:width .25s;border-radius:2px;
-  }
-  .yg-groups-design .navlinks a:hover::after,.yg-groups-design .navlinks a.active::after{width:100%}
-  .yg-groups-design .navtools{display:flex;gap:10px;align-items:center}
   .yg-groups-design .dash-btn{
     height:40px;border-radius:999px;border:1px solid var(--line);
     background:#fff;color:var(--ink-soft);display:inline-flex;align-items:center;gap:8px;
     padding:0 15px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;
-    transition:.2s;white-space:nowrap;
+    transition:.2s;white-space:nowrap;flex-shrink:0;
   }
   .yg-groups-design .dash-btn:hover{color:var(--ink);box-shadow:var(--shadow-card);transform:translateY(-1px)}
-  .yg-groups-design .dash-btn svg{width:17px;height:17px}
-  .yg-groups-design .icon-btn{
-    width:40px;height:40px;border-radius:50%;border:1px solid var(--line);
-    background:#fff;display:grid;place-items:center;cursor:pointer;color:var(--ink-soft);
-    transition:.2s;
-  }
-  .yg-groups-design .icon-btn:hover{color:var(--ink);box-shadow:var(--shadow-card)}
-  .yg-groups-design .icon-btn svg{width:18px;height:18px}
-  .yg-groups-design .ghead{padding:6px 40px 0;display:flex;flex-wrap:wrap;align-items:flex-end;gap:24px;justify-content:space-between}
+  .yg-groups-design .dash-btn svg{width:16px;height:16px}
+  .yg-groups-design .ghead{padding:36px clamp(16px,4vw,40px) 0;display:flex;flex-wrap:wrap;align-items:flex-end;gap:20px;justify-content:space-between}
   .yg-groups-design .ghead .eyebrow{
     font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.18em;
     text-transform:uppercase;color:var(--accent);font-weight:500;
   }
   .yg-groups-design .ghead h1{font-size:clamp(30px,4.2vw,52px);font-weight:700;letter-spacing:-.03em;line-height:1.0;margin-top:12px}
   .yg-groups-design .ghead p{color:var(--ink-soft);font-size:16.5px;margin-top:12px;max-width:440px;text-wrap:pretty}
-  .yg-groups-design .ghead-actions{display:flex;gap:12px;align-items:center}
+  .yg-groups-design .ghead-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .yg-groups-design .search{
     display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);
-    border-radius:13px;padding:12px 16px;min-width:240px;transition:.2s;
+    border-radius:13px;padding:11px 16px;min-width:min(220px,100%);transition:.2s;flex:1;max-width:320px;
   }
   .yg-groups-design .search:focus-within{box-shadow:0 0 0 4px var(--accent-soft);border-color:var(--accent)}
   .yg-groups-design .search svg{width:17px;height:17px;color:var(--muted);flex:0 0 auto}
@@ -931,7 +875,7 @@ const groupsDesignCss = `
   .yg-groups-design .btn svg{width:17px;height:17px}
   .yg-groups-design .btn-accent{background:var(--accent);color:#fff}
   .yg-groups-design .btn-accent:hover{filter:brightness(.95);transform:translateY(-2px);box-shadow:0 16px 30px -14px rgba(47,143,134,.6)}
-  .yg-groups-design .chips{display:flex;gap:10px;flex-wrap:wrap;padding:30px 40px 22px}
+  .yg-groups-design .chips{display:flex;gap:10px;flex-wrap:wrap;padding:28px clamp(16px,4vw,40px) 18px}
   .yg-groups-design .chip{
     font-size:14px;font-weight:500;color:var(--ink-soft);background:#fff;border:1px solid var(--line);
     border-radius:999px;padding:9px 17px;cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:7px;
@@ -940,8 +884,10 @@ const groupsDesignCss = `
   .yg-groups-design .chip.active{background:var(--ink);color:#fff;border-color:var(--ink)}
   .yg-groups-design .chip .c-count{font-size:12px;opacity:.6;font-family:'JetBrains Mono',monospace}
   .yg-groups-design .grid{
-    display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:22px;
-    padding:6px 40px 60px;
+    display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));
+    gap:20px;
+    padding:6px clamp(16px,4vw,40px) 60px;
   }
   .yg-groups-design .gcard{
     background:#fff;border:1px solid var(--line);border-radius:var(--radius-card);
@@ -1180,23 +1126,21 @@ const groupsDesignCss = `
   }
   .yg-groups-design .toast.show{transform:translate(-50%,0);opacity:1}
   .yg-groups-design .toast svg{width:18px;height:18px;color:#7fe0b8}
-  .yg-groups-design footer{max-width:1480px;margin:0 auto;padding:0 28px 50px;color:var(--ink-soft);font-size:14px}
+  .yg-groups-design footer{max-width:1920px;margin:0 auto;padding:0 clamp(16px,4vw,40px) 50px;color:var(--ink-soft);font-size:14px}
   .yg-groups-design .foot-inner{border-top:1px solid var(--line);padding-top:26px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:18px}
   .yg-groups-design .foot-inner a{color:var(--ink-soft);text-decoration:none;margin-left:22px}
   .yg-groups-design .foot-inner a:hover{color:var(--ink)}
-  @media(max-width:900px){
-    .yg-groups-design .navlinks{display:none}
-  }
   @media(max-width:640px){
-    .yg-groups-design .dash-btn{width:40px;padding:0;justify-content:center}
+    .yg-groups-design .dash-btn span{display:none}
+    .yg-groups-design .dash-btn{width:40px;padding:0;justify-content:center;gap:0}
     .yg-groups-design .dash-btn svg{width:18px;height:18px}
-    .yg-groups-design .dash-btn{font-size:0;gap:0}
-    .yg-groups-design .ghead{padding:6px 24px 0}
-    .yg-groups-design .chips{padding:24px 24px 18px}
-    .yg-groups-design .grid{padding:6px 24px 50px}
-    .yg-groups-design .ghead-actions{width:100%;flex-wrap:wrap}
-    .yg-groups-design .search{flex:1;min-width:0}
+    .yg-groups-design .ghead{padding:24px 16px 0}
+    .yg-groups-design .chips{padding:18px 16px 14px}
+    .yg-groups-design .grid{padding:6px 16px 50px;grid-template-columns:1fr}
+    .yg-groups-design .ghead-actions{width:100%}
+    .yg-groups-design .search{flex:1;min-width:0;max-width:none}
     .yg-groups-design .modal{width:100%;border-radius:0}
     .yg-groups-design .field .row{flex-direction:column}
+    .yg-groups-design .ghead h1{font-size:28px}
   }
 `;

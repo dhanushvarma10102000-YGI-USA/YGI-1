@@ -1105,6 +1105,105 @@ set
   type = excluded.type,
   location = excluded.location;
 
+-- ---------------------------------------------------------------------------
+-- Reddit posts (aggregated from RSS for Journeys page + SEO individual pages)
+-- ---------------------------------------------------------------------------
+create table if not exists public.reddit_posts (
+  id           text primary key,          -- Reddit post short ID e.g. "1ulsge7"
+  title        text not null,
+  selftext     text,                       -- Excerpt from RSS feed
+  subreddit    text,
+  author       text,
+  permalink    text,                       -- Full reddit.com URL
+  created_utc  bigint,                     -- Unix timestamp from Reddit
+  fetched_at   timestamptz not null default now()
+);
+
+alter table public.reddit_posts enable row level security;
+
+-- Anyone can read (needed for individual post pages)
+drop policy if exists reddit_posts_public_read on public.reddit_posts;
+create policy reddit_posts_public_read
+  on public.reddit_posts for select using (true);
+
+-- Service role bypasses RLS entirely, so no write policy is needed here.
+-- Authenticated users must NOT be able to write reddit_posts directly.
+drop policy if exists reddit_posts_service_write on public.reddit_posts;
+
+-- ---------------------------------------------------------------------------
+-- Comments on Reddit post pages
+-- ---------------------------------------------------------------------------
+create table if not exists public.reddit_post_comments (
+  id           uuid primary key default gen_random_uuid(),
+  post_id      text not null,              -- Reddit post short ID
+  user_id      uuid references auth.users(id) on delete cascade not null,
+  body         text not null,
+  anon         boolean not null default false,
+  display_name text,
+  created_at   timestamptz not null default now()
+);
+
+alter table public.reddit_post_comments enable row level security;
+
+drop policy if exists rpc_public_read on public.reddit_post_comments;
+create policy rpc_public_read on public.reddit_post_comments for select using (true);
+
+drop policy if exists rpc_insert_own on public.reddit_post_comments;
+create policy rpc_insert_own on public.reddit_post_comments for insert with check (auth.uid() = user_id);
+
+drop policy if exists rpc_delete_own on public.reddit_post_comments;
+create policy rpc_delete_own on public.reddit_post_comments for delete using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Stories table (user-submitted journeys)
+-- ---------------------------------------------------------------------------
+create table if not exists public.stories (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid references auth.users(id) on delete cascade not null,
+  title       text not null,
+  excerpt     text,
+  body_html   text,
+  category    text,
+  city        text,
+  uni         text,
+  anon        boolean not null default false,
+  upvotes     integer not null default 0,
+  comments    integer not null default 0,
+  read_time   integer not null default 1,
+  created_at  timestamptz not null default now()
+);
+
+alter table public.stories enable row level security;
+
+drop policy if exists stories_public_read on public.stories;
+create policy stories_public_read on public.stories for select using (true);
+
+drop policy if exists stories_insert_own on public.stories;
+create policy stories_insert_own on public.stories for insert with check (auth.uid() = user_id);
+
+drop policy if exists stories_delete_own on public.stories;
+create policy stories_delete_own on public.stories for delete using (auth.uid() = user_id);
+
+-- ---------------------------------------------------------------------------
+-- Story votes (prevents duplicate upvotes)
+-- ---------------------------------------------------------------------------
+create table if not exists public.story_votes (
+  story_id  uuid references public.stories(id) on delete cascade,
+  user_id   uuid references auth.users(id) on delete cascade,
+  primary key (story_id, user_id)
+);
+
+alter table public.story_votes enable row level security;
+
+drop policy if exists votes_public_read on public.story_votes;
+create policy votes_public_read on public.story_votes for select using (true);
+
+drop policy if exists votes_insert_own on public.story_votes;
+create policy votes_insert_own on public.story_votes for insert with check (auth.uid() = user_id);
+
+drop policy if exists votes_delete_own on public.story_votes;
+create policy votes_delete_own on public.story_votes for delete using (auth.uid() = user_id);
+
 select pg_notify('pgrst', 'reload schema');
 
 commit;

@@ -4095,12 +4095,13 @@ export default function Community({ initialPage = "community", chromeOffset = 0 
       />
     );
   const fullBleed = page === "chat" || page === "community" || page === "dashboard";
-  const embeddedCommunityHeader = !startsOnDashboard && (page === "dashboard" || page === "chat");
+  // chat is full-screen — hide site nav there; dashboard and community always show it
+  const showSiteNav = page !== "chat";
 
   return (
-    <main style={{ minHeight: embeddedCommunityHeader ? "100vh" : page === "chat" ? "calc(100vh - 70px)" : "100vh", background: C.page, color: C.text }}>
-      {embeddedCommunityHeader ? <Nav user={user} onCommunityClick={showCommunity} /> : null}
-      <div style={{ width: fullBleed ? "100%" : "min(1180px,100%)", margin: "0 auto", padding: fullBleed ? (embeddedCommunityHeader ? "70px 0 0" : 0) : "0 clamp(18px,4vw,40px) 64px" }}>
+    <main style={{ minHeight: "100vh", background: C.page, color: C.text }}>
+      {showSiteNav && <Nav user={user} onCommunityClick={showCommunity} />}
+      <div style={{ width: fullBleed ? "100%" : "min(1700px,100%)", margin: "0 auto", padding: fullBleed ? (showSiteNav ? "70px 0 0" : "0") : "0 clamp(20px,3vw,60px) 64px" }}>
         {content}
       </div>
       <CommunityToast toast={toast} chromeOffset={chromeOffset} onClose={() => setToast(null)} />

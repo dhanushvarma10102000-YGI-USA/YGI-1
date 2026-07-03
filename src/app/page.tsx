@@ -43,14 +43,14 @@ const bottomCards: ArchCard[] = [
 ];
 
 const reviews = [
-  { quote: "The guide is clean, simple and easy to follow. I found what I needed without opening ten different tabs.", name: "Aarav Mehta", role: "Graduate student, NYC", color: "#2f8f86" },
-  { quote: "The guide feels organized from the first click. Search, places and details all work together in a way that makes sense.", name: "Lucia Romano", role: "Exchange student, L.A", color: "#c2683f" },
-  { quote: "The blogs are clear and useful. They explain things in plain words without making the page feel heavy.", name: "Daniel Okafor", role: "PhD student, Boston", color: "#4a6fb0" },
-  { quote: "I like how the guide keeps the important information in one place. It saves time and feels professional.", name: "Mei Lin", role: "Undergrad, Chicago", color: "#8a5aa8" },
-  { quote: "The map guide is easy to use. The results, address details and directions feel quick and polished.", name: "Sofia Alvarez", role: "Visiting scholar, D.C", color: "#317a52" },
-  { quote: "The blog section is exactly what I wanted: focused, readable and not filled with unnecessary text.", name: "Yusuf Demir", role: "MBA student, Stanford", color: "#b0593f" },
-  { quote: "The guide looks modern and trustworthy. Every page feels built with care, especially the search experience.", name: "Priya Nair", role: "Researcher, Seattle", color: "#2f6f8f" },
-  { quote: "The blogs and guide pages work well together. I can read first, then use the guide to find what I need.", name: "Carlos Mendes", role: "Student, Miami", color: "#7a6aa8" },
+  { quote: "I used the guide to find apartments near ASU before I even landed. Filtered by type, saw real addresses, opened maps — done in five minutes.", name: "Aarav Mehta", role: "Graduate student, Tempe AZ", color: "#2f8f86" },
+  { quote: "The article on building credit from scratch was exactly what I needed. Step by step, no fluff. I had a secured card within a week of reading it.", name: "Lucia Romano", role: "Exchange student, Los Angeles", color: "#c2683f" },
+  { quote: "Searched for Indian restaurants near my campus and got a proper map with real results. Not a generic list — actual places I could walk to.", name: "Karan Singh", role: "MS student, Phoenix AZ", color: "#4a6fb0" },
+  { quote: "The visa and OPT blog saved me hours of confusion. It explained the 60-day grace period in plain English, something my university advisor never did.", name: "Mei Lin", role: "Undergrad, Chicago IL", color: "#8a5aa8" },
+  { quote: "I was looking for grocery stores and halal food near my dorm. The guide showed me options sorted by distance with ratings. Really practical.", name: "Fatima Al-Rashidi", role: "Undergrad, Tucson AZ", color: "#317a52" },
+  { quote: "Read the renters insurance article before signing my lease. It told me exactly what to look for and what questions to ask. Saved me from a bad deal.", name: "Yusuf Demir", role: "MBA student, Stanford CA", color: "#b0593f" },
+  { quote: "The banking guide helped me pick the right account on my first week. I did not know secured cards existed until I read it here.", name: "Priya Nair", role: "PhD researcher, Seattle WA", color: "#2f6f8f" },
+  { quote: "I read the blog about health insurance for F-1 students, then used the city guide to find clinics near me. Both pages worked great together.", name: "Carlos Mendes", role: "Exchange student, Miami FL", color: "#7a6aa8" },
 ];
 
 const features = [
@@ -431,9 +431,9 @@ const homeStyles = `
   /* ── Shell / Panel ── */
   .yg-shell{
     width:100%;
-    max-width:min(1480px,100vw);
+    max-width:min(1920px,100vw);
     margin:0 auto 40px;
-    padding:92px 16px 16px;
+    padding:92px clamp(12px,2vw,32px) 16px;
   }
   .yg-panel{
     width:100%;
@@ -553,9 +553,9 @@ const homeStyles = `
   /* ── Features ── */
   .yg-features{
     padding:88px 0 80px;
-    max-width:min(1280px,100vw);
+    max-width:min(1900px,100vw);
     margin:0 auto;
-    padding-left:24px;padding-right:24px;
+    padding-left:clamp(20px,3vw,60px);padding-right:clamp(20px,3vw,60px);
   }
   .yg-feat-grid{
     display:grid;
@@ -605,7 +605,7 @@ const homeStyles = `
     padding:88px 24px;
   }
   .yg-how-inner{
-    max-width:1200px;margin:0 auto;
+    max-width:1700px;margin:0 auto;
     display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center;
   }
   .yg-how-left .yg-sec-head{text-align:left;margin:0}
@@ -635,7 +635,7 @@ const homeStyles = `
     padding:56px 24px;
   }
   .yg-banner-inner{
-    max-width:1100px;margin:0 auto;
+    max-width:1700px;margin:0 auto;
     display:flex;align-items:center;gap:28px;flex-wrap:wrap;
   }
   .yg-banner-icon{
@@ -650,7 +650,7 @@ const homeStyles = `
 
   /* ── Reviews ── */
   .yg-reviews{
-    padding:88px 0 96px;max-width:min(1480px,100vw);
+    padding:88px 0 96px;max-width:min(1920px,100vw);
     margin:0 auto;overflow:hidden;
   }
   .yg-rev-row{overflow:hidden;width:100%;position:relative;padding:6px 0}
@@ -678,7 +678,7 @@ const homeStyles = `
   .yg-who span{display:block;color:var(--yg-muted);font-size:12px;font-weight:500;margin-top:3px}
 
   /* ── Footer ── */
-  .yg-footer{max-width:1480px;margin:0 auto;padding:0 28px 60px}
+  .yg-footer{max-width:1920px;margin:0 auto;padding:0 clamp(20px,3vw,60px) 60px}
   .yg-foot-inner{
     border-top:1px solid var(--yg-line);padding-top:36px;
     display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:24px;

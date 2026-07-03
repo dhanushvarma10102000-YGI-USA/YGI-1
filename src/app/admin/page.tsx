@@ -1137,23 +1137,51 @@ function TrafficTab({ store }: { store: Store }) {
           ))}
         </Card>
       </div>
-      <Card style={{ padding: 20, marginBottom: 18 }}>
-        <h2 style={{ margin: "0 0 16px", fontSize: 15.5, fontWeight: 700 }}>Top countries</h2>
+      <Card style={{ padding: 22, marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 700 }}>Top countries</h2>
+          {!loading && traffic.countries.length > 0 && (
+            <span style={{ fontSize: 12, color: "var(--muted)", background: "var(--card-2)", border: "1px solid var(--border)", borderRadius: 7, padding: "3px 10px", fontWeight: 500 }}>
+              {traffic.countries.length} countries
+            </span>
+          )}
+        </div>
         {loading ? (
-          <div style={{ color: "var(--muted)", fontSize: 13.5 }}>Loading…</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {[0,1,2,3,4].map((i) => <div key={i} className="ygc-shimmer" style={{ height: 48, borderRadius: 10 }} />)}
+          </div>
         ) : traffic.countries.length === 0 ? (
           <div style={{ color: "var(--muted)", fontSize: 13.5 }}>Country data will appear once visitors arrive.</div>
-        ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-            {traffic.countries.map((c, i) => (
-              <div key={i} style={{ padding: 16, borderRadius: 12, background: "var(--card)", border: "1px solid var(--border)", textAlign: "center" }}>
-                <div style={{ fontSize: 30 }}>{c.flag}</div>
-                <div style={{ fontSize: 13.5, fontWeight: 600, marginTop: 8 }}>{c.name}</div>
-                <div style={{ fontSize: 19, fontWeight: 700, color: "var(--accent-2)", marginTop: 3 }}>{c.pct}%</div>
-              </div>
-            ))}
-          </div>
-        )}
+        ) : (() => {
+          const RANK_COLORS = ["#6366f1","#8b5cf6","#3b82f6","#14b8a6","#f59e0b","#ec4899","#f97316","#34d399"];
+          const maxPct = Math.max(...traffic.countries.map((c) => c.pct), 1);
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {traffic.countries.map((c, i) => {
+                const color = RANK_COLORS[i % RANK_COLORS.length];
+                const barW = Math.round((c.pct / maxPct) * 100);
+                return (
+                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 11, background: i === 0 ? `${hexToRgba(color, 0.06)}` : "var(--card-2)", border: `1px solid ${i === 0 ? hexToRgba(color, 0.22) : "var(--border)"}`, transition: "background .2s" }}>
+                    {/* Rank badge */}
+                    <div style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: hexToRgba(color, 0.14), border: `1px solid ${hexToRgba(color, 0.28)}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color }}>
+                      {i + 1}
+                    </div>
+                    {/* Name + bar */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+                        <span style={{ fontSize: 13.5, fontWeight: i === 0 ? 700 : 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color, flexShrink: 0, marginLeft: 12, fontFamily: "var(--mono)" }}>{c.pct}%</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 999, background: "rgba(148,163,184,0.15)", overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: barW + "%", borderRadius: 999, background: `linear-gradient(90deg, ${color}, ${hexToRgba(color, 0.6)})`, transition: "width 1s cubic-bezier(.4,0,.2,1)" }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </Card>
     </div>
   );
@@ -1746,6 +1774,7 @@ function CommunityTab({ store }: { store: Store }) {
   const [groupTab, setGroupTab] = useState<"messages" | "members">("messages");
   const [editingChannelMsgId, setEditingChannelMsgId] = useState<string | null>(null);
   const [editingChannelDraft, setEditingChannelDraft] = useState("");
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState<AdminCommunityGroup | null>(null);
 
   const loadCommunity = useCallback(async () => {
     setCommunityLoading(true);
@@ -1871,11 +1900,25 @@ function CommunityTab({ store }: { store: Store }) {
     await runAction(`${member.user_id}:remove`, { action: "remove_member", group_id: member.group_id, user_id: member.user_id }, "Member removed");
   }
 
+  async function deleteGroup(group: AdminCommunityGroup) {
+    setConfirmDeleteGroup(null);
+    await runAction(`delete-group-${group.id}`, { action: "delete_group", group_id: group.id }, `"${group.name}" deleted`);
+    setSelectedGroupId("");
+  }
+
   const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 750, letterSpacing: 0.8, textTransform: "uppercase" as const, color: "var(--muted)", marginBottom: 10 };
   const emptyBox: React.CSSProperties = { color: "var(--muted)", fontSize: 13, padding: "28px 0", textAlign: "center" as const, border: "1.5px dashed var(--border)", borderRadius: 14 };
 
   return (
     <div className="ygc-fade">
+      <ConfirmDialog
+        open={confirmDeleteGroup !== null}
+        title={`Delete "${confirmDeleteGroup?.name}"?`}
+        body="This will permanently delete the group, all its messages, and all memberships. This cannot be undone."
+        confirmLabel="Delete group"
+        onConfirm={() => confirmDeleteGroup && deleteGroup(confirmDeleteGroup)}
+        onCancel={() => setConfirmDeleteGroup(null)}
+      />
       <PageHeader
         title="Community"
         subtitle="Broadcast to official channels, manage groups, members and moderator access."
@@ -2082,9 +2125,14 @@ function CommunityTab({ store }: { store: Store }) {
                       ))}
                     </div>
                   </div>
-                  <a href={`/community/${encodeURIComponent(selectedGroup.id)}`} target="_blank" rel="noreferrer" style={{ textDecoration: "none", flexShrink: 0 }}>
-                    <Btn variant="ghost" size="sm"><Icon name="external" size={13} /> Open</Btn>
-                  </a>
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                    <a href={`/community/${encodeURIComponent(selectedGroup.id)}`} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                      <Btn variant="ghost" size="sm"><Icon name="external" size={13} /> Open</Btn>
+                    </a>
+                    <Btn variant="danger" size="sm" onClick={() => setConfirmDeleteGroup(selectedGroup)} disabled={busy.startsWith(`delete-group-${selectedGroup.id}`)}>
+                      <Icon name="trash" size={13} /> Delete group
+                    </Btn>
+                  </div>
                 </div>
               </Card>
 

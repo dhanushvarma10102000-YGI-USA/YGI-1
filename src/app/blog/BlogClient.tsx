@@ -47,7 +47,7 @@ export default function BlogClient({ initialPosts }: { initialPosts: Article[] }
 
       <div className="relative z-10">
         <Nav />
-        <div className="mx-auto max-w-6xl px-4 pb-20 pt-24 sm:px-6">
+        <div className="mx-auto max-w-[1700px] px-4 pb-20 pt-24 sm:px-8 xl:px-16">
           <div className="mb-12 text-center">
             <h1 className="mb-3 text-3xl font-bold leading-tight text-[#1a1916] drop-shadow-lg sm:text-5xl">Guides & Articles</h1>
             <p className="mx-auto mb-8 max-w-2xl text-base leading-7 text-[#5d5a52] sm:text-lg">Clear guides and blog posts to help you understand each step faster.</p>

@@ -1376,10 +1376,13 @@ function GuideContent() {
         .ygg-vscroll::-webkit-scrollbar-thumb { background: rgba(79,70,229,0.2); border-radius: 999px; }
         .ygg-sk { background: linear-gradient(90deg,#eef2f8 25%,#e2e8f2 37%,#eef2f8 63%); background-size: 400% 100%; animation: yggShimmer 1.3s ease infinite; }
         .ygg-sidebar { position: relative; transition: width .2s ease, flex-basis .2s ease, padding .2s ease, box-shadow .2s ease; }
-        .ygg-sidebar-toggle-shell { position: absolute; top: 22px; right: -14px; z-index: 75; width: 28px; height: 58px; display: flex; align-items: center; justify-content: center; }
-        .ygg-sidebar-toggle { width: 28px !important; height: 58px !important; border: 1px solid #e8edf5 !important; border-left: 0 !important; border-radius: 0 14px 14px 0 !important; background: rgba(255,255,255,.97) !important; color: #94a3b8 !important; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 10px 0 24px -18px rgba(15,23,42,.55) !important; transition: background .14s ease, border-color .14s ease, color .14s ease, box-shadow .14s ease, transform .14s ease; }
-        .ygg-sidebar-toggle:hover { background: #fff !important; border-color: #dfe2f4 !important; color: #4f46e5 !important; box-shadow: 12px 0 28px -18px rgba(79,70,229,.55) !important; }
-        .ygg-sidebar-toggle:active { transform: scale(.95); }
+        .ygg-sidebar-toggle-shell { position: absolute; top: 50%; right: -20px; transform: translateY(-50%); z-index: 75; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+        .ygg-sidebar-toggle { width: 40px !important; height: 40px !important; border: 1.5px solid #e4e8f4 !important; border-radius: 50% !important; background: #fff !important; color: #64748b !important; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 16px -4px rgba(15,23,42,.18), 0 1px 3px rgba(15,23,42,.08) !important; transition: background .18s ease, border-color .18s ease, color .18s ease, box-shadow .22s ease, transform .18s cubic-bezier(.34,1.56,.64,1); padding: 0; }
+        .ygg-sidebar-toggle:hover { background: linear-gradient(135deg,#4f46e5,#6366f1) !important; border-color: #4f46e5 !important; color: #fff !important; box-shadow: 0 6px 22px -6px rgba(79,70,229,.55), 0 2px 6px rgba(79,70,229,.2) !important; transform: scale(1.08); }
+        .ygg-sidebar-toggle:active { transform: scale(.93) !important; transition: transform .08s ease !important; }
+        .ygg-sidebar-toggle svg { transition: transform .28s cubic-bezier(.34,1.2,.64,1); }
+        .ygg-sidebar-open .ygg-sidebar-toggle svg { transform: rotate(0deg); }
+        .ygg-sidebar-collapsed .ygg-sidebar-toggle svg { transform: rotate(180deg); }
         .ygg-mobile-backdrop { display: none; }
         @keyframes yggShimmer { 0%{background-position:100% 0} 100%{background-position:-100% 0} }
         @keyframes yggUp { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
@@ -1388,9 +1391,9 @@ function GuideContent() {
           .ygg-body { position: relative; grid-template-columns: 1fr !important; grid-template-rows: 1fr !important; overflow: hidden; }
           .ygg-sidebar { position: absolute !important; inset: 0 auto 0 0 !important; z-index: 70; width: min(404px, 88vw) !important; height: 100%; border-right: 1px solid #e8edf5 !important; border-top: 0 !important; box-shadow: 18px 0 50px -34px rgba(15,23,42,.55); }
           .ygg-sidebar-collapsed { width: 0 !important; min-width: 0 !important; flex-basis: 0 !important; border-right: 0 !important; box-shadow: none !important; overflow: visible !important; background: transparent !important; }
-          .ygg-sidebar-open .ygg-sidebar-toggle-shell { top: 18px !important; right: -14px !important; left: auto !important; }
-          .ygg-sidebar-collapsed .ygg-sidebar-toggle-shell { position: absolute !important; top: 14px !important; left: 14px !important; right: auto !important; z-index: 76 !important; width: 34px !important; height: 48px !important; margin: 0 !important; }
-          .ygg-sidebar-collapsed .ygg-sidebar-toggle { width: 34px !important; height: 48px !important; border-left: 1px solid #e8edf5 !important; border-radius: 14px !important; box-shadow: 0 16px 34px -22px rgba(15,23,42,.7) !important; }
+          .ygg-sidebar-open .ygg-sidebar-toggle-shell { top: 50% !important; right: -20px !important; left: auto !important; transform: translateY(-50%) !important; }
+          .ygg-sidebar-collapsed .ygg-sidebar-toggle-shell { position: fixed !important; top: 50% !important; left: 16px !important; right: auto !important; transform: translateY(-50%) !important; z-index: 76 !important; width: 44px !important; height: 44px !important; }
+          .ygg-sidebar-collapsed .ygg-sidebar-toggle { width: 44px !important; height: 44px !important; border-radius: 50% !important; box-shadow: 0 6px 24px -8px rgba(15,23,42,.3), 0 2px 6px rgba(15,23,42,.1) !important; background: linear-gradient(135deg,#4f46e5,#6366f1) !important; border-color: transparent !important; color: #fff !important; }
           .ygg-mobile-backdrop { display: block; position: absolute; inset: 0; z-index: 60; border: 0; background: rgba(15,23,42,.18); backdrop-filter: blur(1px); padding: 0; }
           .ygg-map-pane { min-height: 100%; }
           .ygg-info-card { left: 12px !important; right: 12px !important; bottom: 12px !important; width: auto !important; max-width: none !important; }
@@ -1427,7 +1430,7 @@ function GuideContent() {
               aria-expanded={sidebarOpen}
               title={sidebarOpen ? "Close guide panel" : "Open guide panel"}
             >
-              <Glyph name={sidebarOpen ? "chevronLeft" : "chevronRight"} size={15} />
+              <Glyph name="chevronLeft" size={17} />
             </button>
           </div>
 

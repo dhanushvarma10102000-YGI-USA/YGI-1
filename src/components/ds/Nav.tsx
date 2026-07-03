@@ -16,6 +16,7 @@ const NAV_LINKS = [
   { href: "/guide", label: "Guide" },
   { href: "/blog", label: "Blogs" },
   { href: "/community", label: "Community" },
+  { href: "/stories", label: "Journeys" },
   { href: "/contact", label: "Contact us" },
 ];
 
@@ -188,11 +189,7 @@ export function Nav({ user, onCommunityClick }: { user?: SupabaseUser | null; on
       localStorage.removeItem("ygiu_pending_group");
       localStorage.removeItem("ygiu_pending_action");
     } catch {}
-    setCurrentUser(null);
-    hydrateProfileForm(null);
-    setOpen(false);
-    setProfileOpen(false);
-    setSettingsOpen(false);
+    window.location.href = "/";
   }
 
   function isActiveLink(href: string) {
@@ -327,7 +324,7 @@ export function Nav({ user, onCommunityClick }: { user?: SupabaseUser | null; on
   return (
     <>
       <nav className="fixed left-0 right-0 top-0 z-50 bg-white border-b border-[#e8e5de]">
-        <div className="mx-auto max-w-[1480px] flex items-center justify-between px-5 py-[18px] sm:px-10">
+        <div className="mx-auto max-w-[1920px] w-full flex items-center justify-between px-6 py-[18px] sm:px-10 xl:px-16">
 
           {/* Brand */}
           <Link href="/" className="flex items-center gap-[11px] text-[19px] font-bold tracking-[-.02em] text-[#1a1916] shrink-0">

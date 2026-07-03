@@ -206,6 +206,18 @@ export async function POST(request: Request) {
       return adminJson({ ok: true });
     }
 
+    if (action === "delete_group") {
+      const groupId = String(body?.group_id || "").trim();
+      if (!groupId) return adminJson({ error: "Group id is required." }, 400);
+      // Delete messages, memberships, then the group itself
+      await Promise.all([
+        restMutation("community_messages", { method: "DELETE" }, `group_id=eq.${encodeURIComponent(groupId)}`),
+        restMutation("community_memberships", { method: "DELETE" }, `group_id=eq.${encodeURIComponent(groupId)}`),
+      ]);
+      await restMutation("community_groups", { method: "DELETE" }, `id=eq.${encodeURIComponent(groupId)}`);
+      return adminJson({ ok: true });
+    }
+
     return adminJson({ error: "Unknown community admin action." }, 400);
   } catch (error: any) {
     return adminJson({ error: error?.message || "Community admin action failed." }, 502);
