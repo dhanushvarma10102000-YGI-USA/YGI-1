@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
-import { ArrowRight, BookOpen, Map, MessageSquare, Star, Users, Zap } from "lucide-react";
+import { ArrowRight, BookOpen, Map, Users, Zap } from "lucide-react";
 import { Nav } from "@/components/ds/Nav";
 
 type ArchCard = {
@@ -42,15 +42,13 @@ const bottomCards: ArchCard[] = [
   { label: "VEGAS", image: "https://images.unsplash.com/photo-1581351721010-8cf859cb14a4?auto=format&fit=crop&w=440&h=520&q=80", kind: "city", ratio: 1, rotation: 2, row: "bot" },
 ];
 
-const reviews = [
-  { quote: "I used the guide to find apartments near ASU before I even landed. Filtered by type, saw real addresses, opened maps — done in five minutes.", name: "Aarav Mehta", role: "Graduate student, Tempe AZ", color: "#2f8f86" },
-  { quote: "The article on building credit from scratch was exactly what I needed. Step by step, no fluff. I had a secured card within a week of reading it.", name: "Lucia Romano", role: "Exchange student, Los Angeles", color: "#c2683f" },
-  { quote: "Searched for Indian restaurants near my campus and got a proper map with real results. Not a generic list — actual places I could walk to.", name: "Karan Singh", role: "MS student, Phoenix AZ", color: "#4a6fb0" },
-  { quote: "The visa and OPT blog saved me hours of confusion. It explained the 60-day grace period in plain English, something my university advisor never did.", name: "Mei Lin", role: "Undergrad, Chicago IL", color: "#8a5aa8" },
-  { quote: "I was looking for grocery stores and halal food near my dorm. The guide showed me options sorted by distance with ratings. Really practical.", name: "Fatima Al-Rashidi", role: "Undergrad, Tucson AZ", color: "#317a52" },
-  { quote: "Read the renters insurance article before signing my lease. It told me exactly what to look for and what questions to ask. Saved me from a bad deal.", name: "Yusuf Demir", role: "MBA student, Stanford CA", color: "#b0593f" },
-  { quote: "The banking guide helped me pick the right account on my first week. I did not know secured cards existed until I read it here.", name: "Priya Nair", role: "PhD researcher, Seattle WA", color: "#2f6f8f" },
-  { quote: "I read the blog about health insurance for F-1 students, then used the city guide to find clinics near me. Both pages worked great together.", name: "Carlos Mendes", role: "Exchange student, Miami FL", color: "#7a6aa8" },
+const topics = [
+  { emoji: "🏙️", title: "City Guides", desc: "Explore neighborhoods, costs, transport, and student life in 50+ US cities before you even arrive.", href: "/guide", cta: "Explore cities", accent: "#2f8f86", bg: "#e6f0ee" },
+  { emoji: "✍️", title: "Real Journeys", desc: "Honest first-person stories from people who moved to the US — the wins, the struggles, and what they wish they knew.", href: "/stories", cta: "Read stories", accent: "#c2683f", bg: "#f6ede6" },
+  { emoji: "📋", title: "Visa & Immigration", desc: "F-1, OPT, CPT, and H-1B explained in plain English. Know your status, rights, and key deadlines.", href: "/blog", cta: "Read the guides", accent: "#8a5aa8", bg: "#f0eaf6" },
+  { emoji: "🏦", title: "Banking & Money", desc: "Open a US bank account, build credit from zero, and send money home without losing a fortune in fees.", href: "/blog", cta: "Learn more", accent: "#317a52", bg: "#e6f0eb" },
+  { emoji: "🏠", title: "Housing & Rentals", desc: "Find your first apartment, understand US lease terms, and avoid the traps that catch every newcomer.", href: "/guide", cta: "Find housing tips", accent: "#4a6fb0", bg: "#eaeff8" },
+  { emoji: "🤝", title: "Community", desc: "Join groups from your city, university, or country. Ask questions, share tips, and make friends before you land.", href: "/community", cta: "Join the community", accent: "#b0593f", bg: "#f7ede9" },
 ];
 
 const features = [
@@ -96,28 +94,6 @@ const steps = [
   { num: "03", title: "Join the community", desc: "Find others from your city, country, or school. Ask questions, share tips, and make connections before you even land." },
 ];
 
-function initials(name: string) {
-  return name.split(" ").map((w) => w[0]).slice(0, 2).join("");
-}
-
-function ReviewCard({ review }: { review: (typeof reviews)[number] }) {
-  return (
-    <article className="yg-review">
-      <div className="yg-stars" aria-label="Five star review">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Star key={i} fill="currentColor" strokeWidth={0} />
-        ))}
-      </div>
-      <p>&ldquo;{review.quote}&rdquo;</p>
-      <div className="yg-reviewer">
-        <div className="yg-avatar" style={{ background: review.color }}>{initials(review.name)}</div>
-        <div className="yg-who">
-          {review.name}
-        </div>
-      </div>
-    </article>
-  );
-}
 
 function ArchField() {
   const fieldRef = useRef<HTMLDivElement | null>(null);
@@ -251,9 +227,6 @@ function ArchField() {
 }
 
 export default function HomePage() {
-  const reviewRowA = [...reviews.slice(0, 4), ...reviews.slice(0, 4)];
-  const reviewRowB = [...reviews.slice(4), ...reviews.slice(4)];
-
   return (
     <main className="yg-home">
       <style>{homeStyles}</style>
@@ -346,28 +319,24 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Reviews ── */}
-      <section className="yg-reviews" id="reviews">
+      {/* ── Topics ── */}
+      <section className="yg-topics">
         <div className="yg-sec-head">
-          <div className="yg-sec-eyebrow">Real words, real journeys</div>
-          <h2 className="yg-sec-title">Loved by guide readers</h2>
+          <div className="yg-sec-eyebrow">Jump in</div>
+          <h2 className="yg-sec-title">What do you need help with?</h2>
           <p className="yg-sec-desc">
-            People use the guide and blogs to find clear answers faster. Here is what a few of them say.
+            Pick a topic and get straight to what matters — no sign-up, no paywalls, just practical help.
           </p>
         </div>
-        <div className="yg-rev-row yg-row-a">
-          <div className="yg-rev-track">
-            {reviewRowA.map((review, i) => (
-              <ReviewCard key={`${review.name}-${i}`} review={review} />
-            ))}
-          </div>
-        </div>
-        <div className="yg-rev-row yg-row-b">
-          <div className="yg-rev-track">
-            {reviewRowB.map((review, i) => (
-              <ReviewCard key={`${review.name}-${i}`} review={review} />
-            ))}
-          </div>
+        <div className="yg-topics-grid">
+          {topics.map((t) => (
+            <Link key={t.title} href={t.href} className="yg-topic-card" style={{ ["--tc-accent" as string]: t.accent, ["--tc-bg" as string]: t.bg }}>
+              <div className="yg-topic-icon">{t.emoji}</div>
+              <div className="yg-topic-title">{t.title}</div>
+              <p className="yg-topic-desc">{t.desc}</p>
+              <span className="yg-topic-cta">{t.cta} <ArrowRight size={14} /></span>
+            </Link>
+          ))}
         </div>
       </section>
 
@@ -648,34 +617,39 @@ const homeStyles = `
   .yg-banner-sub{font-size:15px;color:rgba(255,255,255,.75);margin-top:4px}
   .yg-banner-cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
 
-  /* ── Reviews ── */
-  .yg-reviews{
-    padding:88px 0 96px;max-width:min(1920px,100vw);
-    margin:0 auto;overflow:hidden;
+  /* ── Topics ── */
+  .yg-topics{padding:88px clamp(20px,3vw,60px) 96px;max-width:1280px;margin:0 auto}
+  .yg-topics-grid{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:48px;
   }
-  .yg-rev-row{overflow:hidden;width:100%;position:relative;padding:6px 0}
-  .yg-rev-row::before,.yg-rev-row::after{
-    content:"";position:absolute;top:0;bottom:0;width:120px;z-index:5;pointer-events:none;
+  .yg-topic-card{
+    background:#fff;border:1px solid var(--yg-line);border-radius:22px;
+    padding:28px 26px 24px;display:flex;flex-direction:column;gap:10px;
+    text-decoration:none;position:relative;overflow:hidden;
+    box-shadow:0 4px 18px -12px rgba(30,28,22,.22);
+    transition:transform .2s,box-shadow .2s,border-color .2s;
   }
-  .yg-rev-row::before{left:0;background:linear-gradient(90deg,var(--yg-bg),transparent)}
-  .yg-rev-row::after{right:0;background:linear-gradient(-90deg,var(--yg-bg),transparent)}
-  .yg-rev-track{display:flex;gap:20px;width:max-content;padding:12px 11px;will-change:transform}
-  .yg-row-a .yg-rev-track{animation:yg-scroll-left calc(70s / var(--yg-speed)) linear infinite}
-  .yg-row-b{margin-top:8px}
-  .yg-row-b .yg-rev-track{animation:yg-scroll-right calc(82s / var(--yg-speed)) linear infinite}
-  .yg-review{
-    flex:0 0 auto;width:360px;background:#fff;
-    border:1px solid var(--yg-line);border-radius:20px;padding:24px 24px 22px;
-    box-shadow:0 10px 28px -18px rgba(30,28,22,.3);
-    display:flex;flex-direction:column;gap:14px;
+  .yg-topic-card::before{
+    content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+    background:var(--tc-accent);border-radius:4px 0 0 4px;
   }
-  .yg-stars{display:flex;gap:3px;color:var(--yg-accent)}
-  .yg-stars svg{width:15px;height:15px}
-  .yg-review p{font-size:15px;color:var(--yg-ink);line-height:1.58;text-wrap:pretty;margin:0}
-  .yg-reviewer{display:flex;align-items:center;gap:12px;margin-top:2px}
-  .yg-avatar{width:40px;height:40px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;color:#fff;font-weight:700;font-size:14px}
-  .yg-who{font-weight:700;font-size:14px;line-height:1.2}
-  .yg-who span{display:block;color:var(--yg-muted);font-size:12px;font-weight:500;margin-top:3px}
+  .yg-topic-card:hover{
+    transform:translateY(-5px);
+    box-shadow:0 20px 48px -18px rgba(30,28,22,.28);
+    border-color:var(--tc-accent);
+  }
+  .yg-topic-icon{
+    width:50px;height:50px;border-radius:15px;background:var(--tc-bg);
+    display:grid;place-items:center;font-size:22px;flex-shrink:0;
+  }
+  .yg-topic-title{font-size:18px;font-weight:800;color:var(--yg-ink);letter-spacing:-.015em;margin-top:4px}
+  .yg-topic-desc{font-size:14px;color:var(--yg-ink-soft);line-height:1.62;flex:1;text-wrap:pretty;margin:0}
+  .yg-topic-cta{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:13.5px;font-weight:700;color:var(--tc-accent);margin-top:6px;
+  }
+  .yg-topic-cta svg{transition:transform .2s}
+  .yg-topic-card:hover .yg-topic-cta svg{transform:translateX(5px)}
 
   /* ── Footer ── */
   .yg-footer{max-width:1920px;margin:0 auto;padding:0 clamp(20px,3vw,60px) 60px}
@@ -695,9 +669,6 @@ const homeStyles = `
   .yg-foot-links a{font-size:14px;color:var(--yg-ink-soft);padding:6px 12px;border-radius:8px;transition:.15s;font-weight:500}
   .yg-foot-links a:hover{color:var(--yg-ink);background:rgba(30,28,22,.05)}
 
-  /* Animations */
-  @keyframes yg-scroll-left{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-  @keyframes yg-scroll-right{from{transform:translateX(-50%)}to{transform:translateX(0)}}
 
   /* ── Responsive ── */
   @media (max-width:1024px){
@@ -750,10 +721,9 @@ const homeStyles = `
     .yg-how-steps{gap:0}
     .yg-banner-inner{flex-direction:column;text-align:center}
     .yg-banner-cta{justify-content:center}
-    .yg-reviews{padding:54px 0 72px;max-width:100vw}
-    .yg-rev-row::before,.yg-rev-row::after{width:54px}
-    .yg-rev-track{gap:14px;padding:10px 8px}
-    .yg-review{width:min(300px,76vw)}
+    .yg-topics{padding:56px 16px 72px}
+    .yg-topics-grid{grid-template-columns:1fr 1fr;gap:14px;margin-top:36px}
+    .yg-topic-card{padding:22px 20px 20px}
     .yg-sec-head{padding:0 22px}
     .yg-sec-title{font-size:clamp(26px,8vw,34px)}
     .yg-foot-inner{flex-direction:column;align-items:flex-start;gap:20px}
@@ -766,6 +736,6 @@ const homeStyles = `
     .yg-hero-center{top:30%;width:min(300px,84vw)}
     .yg-hero-title{font-size:clamp(34px,11.8vw,43px)}
     .yg-hero-sub{max-width:272px;font-size:14.5px}
-    .yg-review{width:min(292px,78vw)}
+    .yg-topics-grid{grid-template-columns:1fr}
   }
 `;
