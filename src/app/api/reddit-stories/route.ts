@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
+export const runtime = "edge";
 
 const SUBREDDIT_COMBO =
   "immigration+f1visa+internationalstudents+USCIS+UsaVisa+ImmigrationIndia+h1b+greencard" +
@@ -107,6 +108,35 @@ async function saveToSupabase(posts: RedditPost[]) {
   }
 }
 
+/** Load cached posts from Supabase as a fallback when Reddit is unavailable */
+async function loadFromSupabase(limit = 30): Promise<RedditPost[]> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return [];
+  try {
+    const db = createClient(url, key);
+    const { data, error } = await db
+      .from("reddit_posts")
+      .select("id,title,selftext,subreddit,author,permalink,created_utc")
+      .order("fetched_at", { ascending: false })
+      .limit(limit);
+    if (error || !data) return [];
+    return data.map((r) => ({
+      id: r.id as string,
+      title: r.title as string,
+      selftext: r.selftext as string ?? "",
+      subreddit: r.subreddit as string ?? "",
+      author: r.author as string ?? "",
+      score: 0,
+      num_comments: 0,
+      created_utc: r.created_utc as number ?? 0,
+      permalink: r.permalink as string ?? "",
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const rawSort = searchParams.get("sort") ?? "hot";
@@ -122,14 +152,23 @@ export async function GET(request: Request) {
       `https://www.reddit.com/r/${SUBREDDIT_COMBO}/${sort}.rss?limit=40${t}`,
       {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; YourGuideInUSA/1.0)",
-          "Accept": "application/atom+xml, text/xml",
+          "User-Agent": "Mozilla/5.0 (compatible; YourGuideInUSA/1.0; +https://yourguideinusa.com)",
+          "Accept": "application/atom+xml, text/xml, */*",
         },
-        next: { revalidate: sort === "new" ? 3600 : 43200 },
+        // Edge runtime uses no-store so each user request hits Reddit fresh
+        cache: "no-store",
       }
     );
 
     if (!res.ok) {
+      // Reddit is blocking this edge node — serve Supabase cache instead
+      const cached = await loadFromSupabase(30);
+      if (cached.length > 0) {
+        return NextResponse.json(
+          { posts: cached, source: "cache" },
+          { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
+        );
+      }
       return NextResponse.json({ error: `Reddit returned ${res.status}` }, { status: 502 });
     }
 
@@ -142,15 +181,23 @@ export async function GET(request: Request) {
     unique.sort((a, b) => b.created_utc - a.created_utc);
     const final = unique.slice(0, 30);
 
-    // Store to Supabase in background (non-blocking)
+    // Store to Supabase in background (non-blocking) to keep cache warm
     saveToSupabase(final).catch(() => {});
 
     return NextResponse.json(
-      { posts: final },
-      { headers: { "Cache-Control": `public, s-maxage=${sort === "new" ? 3600 : 43200}, stale-while-revalidate=600` } }
+      { posts: final, source: "live" },
+      { headers: { "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=600" } }
     );
   } catch (err) {
     console.error("Reddit RSS error", err);
+    // Network error — try Supabase cache before giving up
+    const cached = await loadFromSupabase(30);
+    if (cached.length > 0) {
+      return NextResponse.json(
+        { posts: cached, source: "cache" },
+        { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
+      );
+    }
     return NextResponse.json({ error: "Failed to fetch Reddit posts" }, { status: 500 });
   }
 }

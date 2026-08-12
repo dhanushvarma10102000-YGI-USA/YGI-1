@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Nav } from "@/components/ds/Nav";
 import { supabase } from "@/lib/supabase";
 
@@ -495,6 +495,15 @@ function SearchSuggestions({ query, onSelect, onClose, stories }: {
   const uniMatches = UNIS.filter((u) => u.name.toLowerCase().includes(q)).slice(0, 2);
   const hasResults = storyMatches.length > 0 || cityMatches.length > 0 || uniMatches.length > 0;
 
+  // Real counts from loaded stories
+  const suggUniCounts = useMemo<Record<string, number>>(() => {
+    const map: Record<string, number> = {};
+    for (const s of stories) {
+      if (s.uni) map[s.uni] = (map[s.uni] || 0) + 1;
+    }
+    return map;
+  }, [stories]);
+
   return (
     <div ref={ref} style={{
       position: "absolute", left: 0, right: 0, top: "calc(100% + 6px)",
@@ -546,7 +555,9 @@ function SearchSuggestions({ query, onSelect, onClose, stories }: {
               padding: "9px 13px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
             }}>
               <span style={{ fontSize: 13.5, fontWeight: 500, color: "#221f1b" }}>{u.name}</span>
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: "#b5562d", background: "#f7ebe2", padding: "1px 8px", borderRadius: 999 }}>{u.n} stories</span>
+              {(suggUniCounts[u.name] ?? 0) > 0 && (
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: "#b5562d", background: "#f7ebe2", padding: "1px 8px", borderRadius: 999 }}>{suggUniCounts[u.name]} stories</span>
+              )}
             </button>
           ))}
         </>
@@ -697,6 +708,15 @@ function FeedView({
   const hasMore = displayCount < sortedStories.length;
 
   // City sidebar: state-list or city-list depending on selectedState
+  // Real per-university story counts derived from loaded stories
+  const uniCounts = useMemo<Record<string, number>>(() => {
+    const map: Record<string, number> = {};
+    for (const s of stories) {
+      if (s.uni) map[s.uni] = (map[s.uni] || 0) + 1;
+    }
+    return map;
+  }, [stories]);
+
   const filteredStates = stateSearch
     ? CITY_GROUPS.filter((g) => g.state.toLowerCase().includes(stateSearch.toLowerCase()))
     : CITY_GROUPS;
@@ -827,7 +847,9 @@ function FeedView({
                     <li key={u.name}>
                       <button onClick={() => addChip("University", u.name)} className="sy-list-row" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, background: uniChip?.v === u.name ? "#f7ebe2" : "none", border: "none", padding: "6px 9px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
                         <span style={{ fontSize: 13, color: "#46423a", fontWeight: 500, lineHeight: 1.3 }}>{u.name}</span>
-                        <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: "#b5562d", background: "#f7ebe2", padding: "1px 7px", borderRadius: 999 }}>{u.n}</span>
+                        {(uniCounts[u.name] ?? 0) > 0 && (
+                          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 600, color: "#b5562d", background: "#f7ebe2", padding: "1px 7px", borderRadius: 999 }}>{uniCounts[u.name]}</span>
+                        )}
                       </button>
                     </li>
                   ))}
@@ -1596,7 +1618,7 @@ function sanitizeStoryHtml(html: string): string {
   return tmp.innerHTML;
 }
 
-function FormView({ onBack, onPublish, user, initialData }: { onBack: () => void; onPublish: (story: Story, editedId?: string) => void; user: { id: string; email?: string; user_metadata?: Record<string, string> } | null; initialData?: EditableStory }) {
+function FormView({ onBack, onPublish, user, initialData, uniCounts }: { onBack: () => void; onPublish: (story: Story, editedId?: string) => void; user: { id: string; email?: string; user_metadata?: Record<string, string> } | null; initialData?: EditableStory; uniCounts: Record<string, number> }) {
   const isEdit = !!initialData?.id;
   const [anon, setAnon] = useState(initialData?.anon ?? true);
   const [title, setTitle] = useState(initialData?.title ?? "");
@@ -1784,7 +1806,9 @@ function FormView({ onBack, onPublish, user, initialData }: { onBack: () => void
               {uniSuggestions.map((u, i) => (
                 <button key={u.name} className="sy-list-row" onClick={() => { setSelectedUni(u.name); setUniQuery(u.name); setShowUniDrop(false); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 15px", background: i === 0 ? "#fafaf7" : "#fff", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
                   <span style={{ fontSize: 14, color: "#221f1b" }}>{highlight(u.name, uniQuery)}</span>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 8px", borderRadius: 999 }}>{u.n}</span>
+                  {(uniCounts[u.name] ?? 0) > 0 && (
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 8px", borderRadius: 999 }}>{uniCounts[u.name]}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1843,6 +1867,13 @@ export default function StoriesClient() {
   const [toast, setToast] = useState("");
   const [stories, setStories] = useState<Story[]>(EMPTY_STORIES);
   const [storiesLoading, setStoriesLoading] = useState(true);
+  const uniCounts = useMemo<Record<string, number>>(() => {
+    const map: Record<string, number> = {};
+    for (const s of stories) {
+      if (s.uni) map[s.uni] = (map[s.uni] || 0) + 1;
+    }
+    return map;
+  }, [stories]);
   const [upvoteCounts, setUpvoteCounts] = useState<number[]>([]);
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
   const [nudgeVisible, setNudgeVisible] = useState(false);
@@ -1948,6 +1979,7 @@ export default function StoriesClient() {
             <FormView
               onBack={() => editStory ? setView("mystories") : setView("feed")}
               user={user}
+              uniCounts={uniCounts}
               initialData={editStory ?? undefined}
               onPublish={(story, editedId) => {
                 if (editedId) {

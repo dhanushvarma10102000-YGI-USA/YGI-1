@@ -468,6 +468,7 @@ function Icon({
     case "bolt": return <svg {...p}><path d="M13 2L4 14h7l-1 8 9-12h-7z" /></svg>;
     case "link": return <svg {...p}><path d="M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66l-1.5 1.5M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66l1.5-1.5" /></svg>;
     case "edit": return <svg {...p}><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
+    case "social": return <svg {...p}><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98" /></svg>;
     default: return null;
   }
 }
@@ -898,6 +899,7 @@ const NAV = [
   { id: "queue", label: "Queue", icon: "queue" },
   { id: "generate", label: "Generate", icon: "generate", badge: "AI" },
   { id: "community", label: "Community", icon: "community" },
+  { id: "social", label: "Social", icon: "social" },
 ];
 
 function Sidebar({
@@ -1461,6 +1463,8 @@ function GenerateTab({ store }: { store: Store }) {
   const [published, setPublished] = useState<Draft | Article | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [reviewConfirmed, setReviewConfirmed] = useState(false);
+  const [postToSocial, setPostToSocial] = useState(true);
+  const [socialStatus, setSocialStatus] = useState<"idle" | "posting" | "done" | "offline">("idle");
 
   useEffect(() => {
     if (prefillTopic) {
@@ -1511,10 +1515,32 @@ function GenerateTab({ store }: { store: Store }) {
       return;
     }
     setPublishing(true);
+    setSocialStatus("idle");
     try {
       const saved = await onPublish(draft);
-      setPublished(saved || draft);
+      const article = saved || draft;
+      setPublished(article);
       setPhase("published");
+
+      if (postToSocial) {
+        setSocialStatus("posting");
+        adminApi<{ ok: boolean; message?: string; error?: string }>("/api/admin/social", {
+          method: "POST",
+          body: JSON.stringify({
+            action: "publish",
+            article: {
+              title: article.title,
+              excerpt: (article as Draft).excerpt ?? "",
+              category: article.category,
+              slug: (article as Draft).slug ?? "",
+              url: `https://yourguideinusa.com/blog/${(article as Draft).slug ?? ""}`,
+              image_url: (article as Draft).image_url ?? (article as Article).image ?? null,
+            },
+          }),
+        })
+          .then(r => { setSocialStatus(r.ok ? "done" : "offline"); })
+          .catch(() => { setSocialStatus("offline"); });
+      }
     } catch (e: any) {
       push("Saved locally — Supabase insert failed: " + e.message, "error");
       setPublished(draft);
@@ -1644,15 +1670,26 @@ function GenerateTab({ store }: { store: Store }) {
             </div>
           </div>
           <div style={{ padding: "16px 26px", borderTop: "1px solid var(--border)", display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 260, flex: "1 1 360px", color: "var(--muted)", fontSize: 13.5, lineHeight: 1.45 }}>
-              <input
-                type="checkbox"
-                checked={reviewConfirmed}
-                onChange={(e) => setReviewConfirmed(e.target.checked)}
-                style={{ width: 17, height: 17, accentColor: "var(--success)" }}
-              />
-              I reviewed sources, dates, risky claims, and the article is ready to publish.
-            </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: "1 1 360px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 9, color: "var(--muted)", fontSize: 13.5, lineHeight: 1.45 }}>
+                <input
+                  type="checkbox"
+                  checked={reviewConfirmed}
+                  onChange={(e) => setReviewConfirmed(e.target.checked)}
+                  style={{ width: 17, height: 17, accentColor: "var(--success)" }}
+                />
+                I reviewed sources, dates, risky claims, and the article is ready to publish.
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 9, color: "var(--muted)", fontSize: 13.5, lineHeight: 1.45 }}>
+                <input
+                  type="checkbox"
+                  checked={postToSocial}
+                  onChange={(e) => setPostToSocial(e.target.checked)}
+                  style={{ width: 17, height: 17, accentColor: "#e1306c" }}
+                />
+                Also post to social media (Instagram, Facebook &amp; X) automatically.
+              </label>
+            </div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
               <Btn variant="ghost" onClick={reset}>Discard</Btn>
               <Btn variant="success" onClick={publish} disabled={publishing || !reviewConfirmed}>
@@ -1668,9 +1705,16 @@ function GenerateTab({ store }: { store: Store }) {
             <Icon name="check" size={30} color="var(--success)" />
           </div>
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Published!</h2>
-          <p style={{ margin: "8px auto 0", color: "var(--muted)", fontSize: 14, maxWidth: 380 }}>&quot;<strong style={{ color: "var(--text)" }}>{published.title}</strong>&quot; is now live on your blog and added to your articles.</p>
+          <p style={{ margin: "8px auto 0", color: "var(--muted)", fontSize: 14, maxWidth: 380 }}>&quot;<strong style={{ color: "var(--text)" }}>{published.title}</strong>&quot; is now live on your blog.</p>
+          {postToSocial && (
+            <div style={{ margin: "16px auto 0", maxWidth: 360, padding: "11px 16px", borderRadius: 10, fontSize: 13, display: "flex", alignItems: "center", gap: 9, justifyContent: "center", ...(socialStatus === "posting" ? { background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.2)", color: "var(--accent)" } : socialStatus === "done" ? { background: "rgba(52,211,153,0.09)", border: "1px solid rgba(52,211,153,0.28)", color: "var(--success)" } : socialStatus === "offline" ? { background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.22)", color: "#b91c1c" } : {}) }}>
+              {socialStatus === "posting" && <><Icon name="refresh" size={13} className="ygc-spin" /> Posting to social media…</>}
+              {socialStatus === "done" && <><Icon name="check" size={13} color="var(--success)" /> Posted to Instagram, Facebook &amp; X</>}
+              {socialStatus === "offline" && <><Icon name="info" size={13} /> Social distributor offline — start it to auto-post</>}
+            </div>
+          )}
           <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 22 }}>
-            <a href={`/blog/${published.slug || ""}`} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+            <a href={`/blog/${(published as Draft).slug || ""}`} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
               <Btn variant="primary"><Icon name="external" size={15} color="#fff" /> View article</Btn>
             </a>
             <Btn variant="ghost" onClick={reset}><Icon name="plus" size={15} /> Write another</Btn>
@@ -2273,6 +2317,391 @@ function CommunityTab({ store }: { store: Store }) {
 }
 
 /* ============================================================
+   SOCIAL TAB
+   ============================================================ */
+/* ── Social tab types ──────────────────────────────────────── */
+interface SocialRun {
+  id: number;
+  title: string;
+  status: string;
+  trigger: string;
+  started_at: string;
+  category?: string;
+  url?: string;
+}
+interface SocialPost {
+  id: number;
+  platform: string;
+  status: string;
+  posted_at: string | null;
+  error?: string;
+  title: string;
+  url?: string;
+  category?: string;
+}
+interface PlatformStat { platform: string; total: number; posted: number; failed: number; }
+interface PlatformData { stats: PlatformStat[]; recent: Record<string, SocialPost[]>; }
+interface SocialData {
+  online: boolean;
+  runs: SocialRun[];
+  posts: any[];
+  platformData: PlatformData | null;
+  error?: string;
+}
+interface SocialCaptions { instagram: string; facebook: string; x: string; }
+
+const PLATFORM_META = {
+  instagram: { label: "Instagram", color: "#e1306c", bg: "linear-gradient(135deg,#e1306c,#833ab4)" },
+  facebook:  { label: "Facebook",  color: "#1877f2", bg: "linear-gradient(135deg,#1877f2,#0a52b2)" },
+  x:         { label: "X / Twitter", color: "#e7e9ea", bg: "linear-gradient(135deg,#1a1a1a,#333)" },
+};
+
+/* ── Poster HTML renderers (mirrors server templates) ────────── */
+function posterMinimal(title: string, excerpt: string, category: string): string {
+  const t = title.length > 80 ? title.slice(0,77)+"…" : title;
+  const e = (excerpt||"").length > 160 ? excerpt.slice(0,157)+"…" : (excerpt||"");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{width:1080px;height:1080px;background:#f6f5f2;font-family:Georgia,serif;padding:80px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden}.top{display:flex;align-items:center;justify-content:space-between}.tag{background:#2f8f86;color:#fff;padding:9px 22px;border-radius:999px;font-family:sans-serif;font-size:16px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}.site{font-family:'Courier New',monospace;font-size:16px;color:#a3a097}.mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:40px 0}.line{width:60px;height:4px;background:#2f8f86;border-radius:2px;margin-bottom:40px}.title{font-size:74px;font-weight:700;line-height:1.08;color:#1a1916;letter-spacing:-.025em}.excerpt{font-size:22px;color:#5d5a52;line-height:1.58;margin-top:28px;font-style:italic}.bottom{display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:14px}.mark{width:44px;height:44px;border-radius:11px;background:conic-gradient(from 200deg,#2f8f86,#7fc9c0,#2f8f86)}.brand-name{font-family:sans-serif;font-size:20px;font-weight:800;color:#1a1916}.cta{font-family:sans-serif;font-size:18px;color:#2f8f86;font-weight:700}</style></head><body><div class="top"><div class="tag">${category||"Guide"}</div><div class="site">yourguideinusa.com</div></div><div class="mid"><div class="line"></div><div class="title">${t}</div>${e?`<div class="excerpt">${e}</div>`:""}</div><div class="bottom"><div class="brand"><div class="mark"></div><div class="brand-name">Your Guide In USA</div></div><div class="cta">Read the full guide →</div></div></body></html>`;
+}
+function posterGradient(title: string, excerpt: string, category: string): string {
+  const t = title.length > 70 ? title.slice(0,67)+"…" : title;
+  const e = (excerpt||"").length > 140 ? excerpt.slice(0,137)+"…" : (excerpt||"");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{width:1080px;height:1080px;background:radial-gradient(ellipse 110% 90% at 25% 30%,#1fc9b8 0%,#1a7a72 30%,#0d3a35 70%,#040f0e 100%);font-family:Arial,sans-serif;padding:80px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative}body::before{content:'';position:absolute;top:-200px;right:-200px;width:700px;height:700px;border-radius:50%;border:80px solid rgba(255,255,255,.04)}body::after{content:'';position:absolute;bottom:-120px;left:-120px;width:500px;height:500px;border-radius:50%;border:60px solid rgba(255,255,255,.03)}.top{display:flex;align-items:flex-start;justify-content:space-between;position:relative}.tag{background:rgba(255,255,255,.15);color:#fff;padding:9px 22px;border-radius:8px;font-size:15px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;border:1px solid rgba(255,255,255,.2)}.mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding:40px 0;position:relative}.title{font-size:80px;font-weight:900;line-height:1.05;color:#fff;letter-spacing:-.03em;text-shadow:0 2px 24px rgba(0,0,0,.25)}.excerpt{font-size:21px;color:rgba(255,255,255,.65);line-height:1.55;margin-top:30px}.bottom{display:flex;align-items:center;justify-content:space-between;position:relative}.divider{height:1px;background:rgba(255,255,255,.15);width:100%;position:absolute;top:-28px;left:0}.brand{display:flex;align-items:center;gap:14px}.mark{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,#5de3d8,#2f8f86);display:flex;align-items:center;justify-content:center}.mark-inner{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.9)}.brand-name{font-size:19px;font-weight:800;color:#fff}.site{font-size:16px;color:rgba(255,255,255,.45);font-family:'Courier New',monospace}</style></head><body><div class="top"><div class="tag">${category||"Guide"}</div></div><div class="mid"><div class="title">${t}</div>${e?`<div class="excerpt">${e}</div>`:""}</div><div class="bottom"><div class="divider"></div><div class="brand"><div class="mark"><div class="mark-inner"></div></div><div class="brand-name">Your Guide In USA</div></div><div class="site">yourguideinusa.com</div></div></body></html>`;
+}
+function posterEditorial(title: string, excerpt: string, category: string, imageUrl?: string): string {
+  const t = title.length > 65 ? title.slice(0,62)+"…" : title;
+  const e = (excerpt||"").length > 130 ? excerpt.slice(0,127)+"…" : (excerpt||"");
+  const rightPanel = imageUrl
+    ? `<div class="photo" style="background-image:url('${imageUrl}')"><div class="photo-overlay"></div></div>`
+    : `<div class="pattern">${Array.from({length:16},()=>`<div class="p-cell"></div>`).join("")}</div>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{width:1080px;height:1080px;background:#0e0f0e;font-family:Georgia,serif;display:flex;overflow:hidden}.left{flex:0 0 660px;padding:80px;display:flex;flex-direction:column;justify-content:space-between;background:#0e0f0e}.right{flex:1;position:relative;overflow:hidden}.photo{width:100%;height:100%;background-size:cover;background-position:center}.photo-overlay{position:absolute;inset:0;background:linear-gradient(90deg,#0e0f0e 0%,transparent 40%)}.pattern{width:100%;height:100%;background:linear-gradient(135deg,#1a2e2c 0%,#0e1f1d 100%);display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:2px;padding:2px}.p-cell{background:rgba(47,143,134,.08);border-radius:2px}.p-cell:nth-child(3n+1){background:rgba(47,143,134,.18)}.p-cell:nth-child(5n+2){background:rgba(47,143,134,.06)}.issue-no{font-family:'Courier New',monospace;font-size:13px;color:#2f8f86;letter-spacing:.15em;text-transform:uppercase;margin-bottom:16px}.tag-line{display:flex;align-items:center;gap:12px}.tag-bar{width:4px;height:32px;background:#2f8f86;border-radius:2px}.tag-text{font-family:sans-serif;font-size:14px;font-weight:700;color:#2f8f86;letter-spacing:.08em;text-transform:uppercase}.mid-left{flex:1;display:flex;flex-direction:column;justify-content:center}.title{font-size:72px;font-weight:700;line-height:1.06;color:#f0efec;letter-spacing:-.025em}.rule{width:40px;height:3px;background:#2f8f86;border-radius:2px;margin:30px 0}.excerpt{font-size:19px;color:#7a7971;line-height:1.65;font-style:italic}.bottom-left{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #1e1f1e;padding-top:24px}.brand{font-family:sans-serif;font-size:17px;font-weight:800;color:#f0efec}.site{font-family:'Courier New',monospace;font-size:13px;color:#3d3d3a}</style></head><body><div class="left"><div><div class="issue-no">yourguideinusa.com</div><div class="tag-line"><div class="tag-bar"></div><div class="tag-text">${category||"Guide"}</div></div></div><div class="mid-left"><div class="title">${t}</div><div class="rule"></div>${e?`<div class="excerpt">${e}</div>`:""}</div><div class="bottom-left"><div class="brand">Your Guide In USA</div><div class="site">Read → yourguideinusa.com</div></div></div><div class="right">${rightPanel}</div></body></html>`;
+}
+
+/* ── Scaled poster iframe ─────────────────────────────────────── */
+function PosterFrame({ html, label }: { html: string; label: string }) {
+  const SCALE = 270 / 1080;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <div style={{ width: 270, height: 270, overflow: "hidden", borderRadius: 14, border: "1px solid var(--border)", flexShrink: 0 }}>
+        <iframe srcDoc={html} style={{ width: 1080, height: 1080, transform: `scale(${SCALE})`, transformOrigin: "top left", border: "none", display: "block" }} scrolling="no" title={label} />
+      </div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", textAlign: "center" }}>{label}</div>
+    </div>
+  );
+}
+
+/* ── Post Preview panel ───────────────────────────────────────── */
+function PostPreviewPanel({ articles, online, push }: { articles: Article[]; online: boolean; push: Store["push"] }) {
+  const [selectedId, setSelectedId] = useState("");
+  const [captions, setCaptions] = useState<SocialCaptions | null>(null);
+  const [captionTab, setCaptionTab] = useState<keyof SocialCaptions>("instagram");
+  const [generating, setGenerating] = useState(false);
+  const [unsplashUrl, setUnsplashUrl] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+
+  const article = articles.find(a => String(a.id) === selectedId) ?? (articles[0] || null);
+  const previewArticle = article ?? { title: "How to get a Social Security Number as an international student", excerpt: "A step-by-step guide to getting your SSN in the USA — documents, timing, and common mistakes to avoid.", category: "Daily Life" };
+
+  // Auto-fetch Unsplash image whenever the article (or category) changes
+  useEffect(() => {
+    if (!online) return;
+    const category = previewArticle.category || "Daily Life";
+    const query = `${category} usa`;
+    let cancelled = false;
+    setUnsplashUrl(null);
+    setImageLoading(true);
+    adminApi<{ url?: string; error?: string }>("/api/admin/social", {
+      method: "POST",
+      body: JSON.stringify({ action: "unsplash", query }),
+    })
+      .then(r => { if (!cancelled && r.url) setUnsplashUrl(r.url); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setImageLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedId, previewArticle.category, online]);
+
+  async function generate() {
+    if (!article) return;
+    setGenerating(true);
+    setCaptions(null);
+    try {
+      const r = await adminApi<{ captions: SocialCaptions }>("/api/admin/social", {
+        method: "POST",
+        body: JSON.stringify({ action: "generate", title: article.title, excerpt: article.excerpt, category: article.category, slug: article.slug, url: `https://yourguideinusa.com/blog/${article.slug}` }),
+      });
+      if (r.captions) { setCaptions(r.captions); setCaptionTab("instagram"); }
+      else push((r as any).error || "Generation failed", "error");
+    } catch (err: any) { push(err.message, "error"); }
+    finally { setGenerating(false); }
+  }
+
+  const inputStyle: React.CSSProperties = { padding: "8px 12px", borderRadius: 9, fontSize: 13, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", outline: "none", fontFamily: "inherit" };
+
+  return (
+    <Card style={{ padding: 0, marginBottom: 24, overflow: "hidden" }}>
+      <div style={{ padding: "18px 22px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15.5 }}>Post Preview</div>
+          <div style={{ fontSize: 12.5, color: "var(--muted)", marginTop: 2 }}>See exactly what poster &amp; captions get generated — Unsplash photo auto-picked per category.</div>
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setCaptions(null); }} style={{ ...inputStyle, minWidth: 240 }}>
+            <option value="">Latest article (default)</option>
+            {articles.map(a => <option key={a.id} value={String(a.id)}>{a.title}</option>)}
+          </select>
+          <Btn variant="gradient" onClick={generate} disabled={!online || generating}>
+            {generating ? <><Icon name="refresh" size={13} color="#fff" className="ygc-spin" /> Generating…</> : <><Icon name="generate" size={13} color="#fff" /> Generate captions</>}
+          </Btn>
+        </div>
+      </div>
+
+      <div style={{ padding: "22px 22px 24px" }}>
+        {/* Poster previews */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.6 }}>Poster templates</div>
+          {imageLoading && <span style={{ fontSize: 11.5, color: "var(--muted-2)", display: "flex", alignItems: "center", gap: 5 }}><Icon name="refresh" size={12} className="ygc-spin" /> Fetching Unsplash photo…</span>}
+          {unsplashUrl && !imageLoading && <span style={{ fontSize: 11.5, color: "var(--success)", display: "flex", alignItems: "center", gap: 5 }}><Icon name="check" size={12} color="var(--success)" /> Unsplash photo loaded</span>}
+        </div>
+        <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 28 }}>
+          <PosterFrame html={posterMinimal(previewArticle.title, previewArticle.excerpt || "", previewArticle.category || "Guide")} label="Minimal — Instagram &amp; Facebook" />
+          <PosterFrame html={posterGradient(previewArticle.title, previewArticle.excerpt || "", previewArticle.category || "Guide")} label="Gradient — X / Twitter" />
+          <PosterFrame html={posterEditorial(previewArticle.title, previewArticle.excerpt || "", previewArticle.category || "Guide", unsplashUrl || undefined)} label="Editorial — with Unsplash photo" />
+        </div>
+
+        {/* Captions */}
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 12 }}>AI-generated captions</div>
+        {!captions && !generating && (
+          <div style={{ padding: "26px 0", textAlign: "center", color: "var(--muted)", fontSize: 13.5, border: "2px dashed var(--border)", borderRadius: 12 }}>
+            {online ? "Click \"Generate example\" to see real AI captions for the selected article." : "Start the social distributor to generate captions."}
+          </div>
+        )}
+        {generating && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[0,1].map(i => <div key={i} className="ygc-shimmer" style={{ height: 100, borderRadius: 10 }} />)}
+          </div>
+        )}
+        {captions && !generating && (
+          <div className="ygc-fade">
+            <div style={{ display: "flex", gap: 3, background: "var(--card-2)", border: "1px solid var(--border)", borderRadius: 10, padding: 4, width: "fit-content", marginBottom: 14 }}>
+              {(["instagram","facebook","x"] as const).map(p => (
+                <button key={p} onClick={() => setCaptionTab(p)} style={{ padding: "6px 16px", borderRadius: 7, border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all .13s", background: captionTab === p ? PLATFORM_META[p].color : "transparent", color: captionTab === p ? "#fff" : "var(--muted)" }}>
+                  {PLATFORM_META[p].label}
+                </button>
+              ))}
+            </div>
+            <div style={{ position: "relative" }}>
+              <textarea readOnly value={captions[captionTab]} rows={captionTab === "x" ? 3 : 7} style={{ width: "100%", padding: "12px 14px", borderRadius: 10, border: "1px solid var(--border)", background: "var(--card-2)", color: "var(--text)", fontSize: 13.5, lineHeight: 1.65, fontFamily: "inherit", resize: "none" }} />
+              {captionTab === "x" && (
+                <div style={{ position: "absolute", bottom: 10, right: 12, fontSize: 11.5, fontWeight: 600, fontFamily: "var(--mono)", color: captions.x.length > 260 ? "#f87171" : "var(--muted-2)" }}>{captions.x.length}/280</div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/* ── Per-platform card ────────────────────────────────────────── */
+function PlatformCard({ platform, stat, recent }: { platform: keyof typeof PLATFORM_META; stat?: PlatformStat; recent: SocialPost[] }) {
+  const meta = PLATFORM_META[platform];
+  const posted = stat?.posted ?? 0;
+  const failed = stat?.failed ?? 0;
+  const total = stat?.total ?? 0;
+  const rate = total > 0 ? Math.round((posted / total) * 100) : 0;
+  return (
+    <Card style={{ padding: 0, overflow: "hidden" }}>
+      <div style={{ height: 5, background: meta.bg }} />
+      <div style={{ padding: "16px 18px 14px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 14.5, color: "var(--text)" }}>{meta.label}</div>
+          <div style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 22, fontWeight: 800, color: "var(--text)" }}>{posted}</span>
+            <span style={{ fontSize: 12, color: "var(--muted)" }}>posted</span>
+            {failed > 0 && <><span style={{ fontSize: 16, fontWeight: 700, color: "#f87171" }}>{failed}</span><span style={{ fontSize: 12, color: "#f87171" }}>failed</span></>}
+          </div>
+        </div>
+        {total > 0 && (
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: rate > 80 ? "var(--success)" : rate > 50 ? "var(--amber)" : "#f87171" }}>{rate}%</div>
+            <div style={{ fontSize: 11, color: "var(--muted-2)" }}>success</div>
+          </div>
+        )}
+      </div>
+      <div style={{ padding: "12px 18px 16px" }}>
+        {recent.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: "var(--muted)", padding: "10px 0" }}>No posts yet on this platform.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {recent.slice(0,4).map(p => (
+              <div key={p.id} style={{ display: "flex", alignItems: "flex-start", gap: 9 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, marginTop: 5, background: p.status === "posted" ? "var(--success)" : "#f87171" }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.title}</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-2)", marginTop: 2, fontFamily: "var(--mono)" }}>
+                    {p.posted_at ? fmtDateTime(p.posted_at) : "—"}
+                    {p.category && <> · {p.category}</>}
+                  </div>
+                  {p.error && <div style={{ fontSize: 11, color: "#f87171", marginTop: 2 }}>{p.error.slice(0, 60)}</div>}
+                </div>
+                {p.url && <a href={p.url} target="_blank" rel="noreferrer" style={{ flexShrink: 0 }}><Icon name="external" size={12} color="var(--muted-2)" /></a>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+/* ── Main Social Tab ─────────────────────────────────────────── */
+function SocialTab({ store }: { store: Store }) {
+  const { articles, push } = store;
+  const [data, setData] = useState<SocialData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [triggering, setTriggering] = useState(false);
+  const [expandedRun, setExpandedRun] = useState<number | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await adminApi<SocialData>("/api/admin/social");
+      setData(result);
+    } catch (err: any) {
+      setData({ online: false, runs: [], posts: [], platformData: null, error: err.message });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function triggerDetection() {
+    setTriggering(true);
+    try {
+      const result = await adminApi<{ ok: boolean; message: string }>("/api/admin/social", { method: "POST", body: "{}" });
+      push(result.message || "Detection started", "success");
+      setTimeout(load, 2500);
+    } catch (err: any) {
+      push(err.message || "Could not trigger detection", "error");
+    } finally {
+      setTriggering(false);
+    }
+  }
+
+  const runs = data?.runs ?? [];
+  const posts = data?.posts ?? [];
+  const online = data?.online ?? false;
+  const pd = data?.platformData;
+  const totalPosted = runs.filter(r => r.status === "done").length;
+  const totalFailed = runs.filter(r => r.status === "failed").length;
+
+  function platformStat(p: string) { return pd?.stats?.find(s => s.platform === p); }
+  function platformRecent(p: string): SocialPost[] { return pd?.recent?.[p] ?? []; }
+
+  return (
+    <div className="ygc-fade">
+      <PageHeader
+        title="Social Media"
+        subtitle="Monitor distribution, preview generated posts, and control Instagram, Facebook &amp; X."
+        actions={
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 13px", borderRadius: 999, border: `1px solid ${online ? "rgba(52,211,153,0.35)" : "rgba(248,113,113,0.35)"}`, background: online ? "rgba(52,211,153,0.09)" : "rgba(248,113,113,0.09)", fontSize: 12.5, fontWeight: 600, color: online ? "var(--success)" : "#f87171" }}>
+              <span className={online ? "ygc-pulse" : ""} style={{ width: 7, height: 7, borderRadius: "50%", background: online ? "var(--success)" : "#f87171" }} />
+              {online ? "Distributor online" : "Offline"}
+            </span>
+            <Btn variant="ghost" size="sm" onClick={load} disabled={loading}>
+              <Icon name="refresh" size={14} className={loading ? "ygc-spin" : ""} /> Refresh
+            </Btn>
+            <Btn variant="ghost" size="sm" onClick={triggerDetection} disabled={!online || triggering} title="Scan for new posts and auto-distribute">
+              <Icon name="bolt" size={14} /> {triggering ? "Scanning…" : "Auto-detect"}
+            </Btn>
+          </div>
+        }
+      />
+
+      {/* Offline banner */}
+      {!loading && !online && (
+        <div style={{ marginBottom: 22, padding: "14px 18px", borderRadius: 12, background: "rgba(248,113,113,0.07)", border: "1px solid rgba(248,113,113,0.25)", color: "#b91c1c", fontSize: 13.5, lineHeight: 1.6 }}>
+          <strong>Social distributor is not running.</strong> Open a terminal and run{" "}
+          <code style={{ fontFamily: "var(--mono)", fontSize: 12.5, background: "rgba(248,113,113,0.12)", padding: "1px 6px", borderRadius: 5 }}>npm run dev</code>{" "}
+          inside <code style={{ fontFamily: "var(--mono)", fontSize: 12.5, background: "rgba(248,113,113,0.12)", padding: "1px 6px", borderRadius: 5 }}>social-distributor/</code>, then refresh.
+        </div>
+      )}
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 24 }}>
+        <StatCard label="Total runs" value={loading ? "—" : runs.length} icon="articles" accent="#6366f1" loading={loading} />
+        <StatCard label="Posts distributed" value={loading ? "—" : totalPosted} icon="social" accent="#10b981" loading={loading} />
+        <StatCard label="Failed" value={loading ? "—" : totalFailed} icon="close" accent="#f87171" loading={loading} />
+        <StatCard label="Posts detected" value={loading ? "—" : posts.length} icon="eye" accent="#8b5cf6" loading={loading} />
+      </div>
+
+      {/* Per-platform sections */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
+        {(["instagram","facebook","x"] as const).map(p => (
+          loading
+            ? <div key={p} className="ygc-shimmer" style={{ height: 220, borderRadius: 14 }} />
+            : <PlatformCard key={p} platform={p} stat={platformStat(p)} recent={platformRecent(p)} />
+        ))}
+      </div>
+
+      {/* Post preview */}
+      <PostPreviewPanel articles={articles} online={online} push={push} />
+
+      {/* Pipeline run history */}
+      <Card style={{ padding: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+          <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 700 }}>Distribution history</h2>
+          {runs[0] && <span style={{ fontSize: 12, color: "var(--muted-2)", fontFamily: "var(--mono)" }}>Last: {fmtDateTime(runs[0].started_at)}</span>}
+        </div>
+        {loading ? (
+          <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            {[0,1,2,3].map(i => <div key={i} className="ygc-shimmer" style={{ height: 52, borderRadius: 10 }} />)}
+          </div>
+        ) : runs.length === 0 ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--muted)", fontSize: 13.5 }}>No runs yet — publish an article with "Post to social media" checked.</div>
+        ) : (
+          <div>
+            {runs.map(run => {
+              const isOpen = expandedRun === run.id;
+              const statusColor = run.status === "done" ? "var(--success)" : run.status === "failed" ? "#f87171" : "#fbbf24";
+              const stripColor = run.status === "done" ? "#22c55e" : run.status === "failed" ? "#f87171" : "#fbbf24";
+              return (
+                <div key={run.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <div
+                    onClick={() => setExpandedRun(isOpen ? null : run.id)}
+                    style={{ display: "flex", alignItems: "center", gap: 14, padding: "13px 20px", cursor: "pointer", borderLeft: `4px solid ${stripColor}`, transition: "background .12s" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "var(--card-2)")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "")}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{run.title}</div>
+                      <div style={{ display: "flex", gap: 12, marginTop: 4, alignItems: "center" }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: statusColor }}>{run.status.toUpperCase()}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted-2)", fontFamily: "var(--mono)" }}>{fmtDateTime(run.started_at)}</span>
+                        <span style={{ fontSize: 11, color: "var(--muted-2)", textTransform: "capitalize" }}>{run.trigger}</span>
+                        {run.category && <Badge category={run.category} />}
+                      </div>
+                    </div>
+                    <span style={{ color: "var(--muted-2)", fontSize: 11 }}>{isOpen ? "▲" : "▼"}</span>
+                  </div>
+                  {isOpen && (
+                    <div style={{ padding: "12px 24px 16px", background: "var(--card-2)", borderTop: "1px solid var(--border)", display: "flex", gap: 18, alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, color: "var(--muted)" }}>Run <strong style={{ color: "var(--text)", fontFamily: "var(--mono)" }}>#{run.id}</strong></span>
+                      {run.url && <a href={run.url} target="_blank" rel="noreferrer" style={{ color: "var(--accent-2)", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12 }}><Icon name="external" size={12} /> View article</a>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ============================================================
    ROOT PAGE
    ============================================================ */
 export default function AdminPage() {
@@ -2485,6 +2914,7 @@ export default function AdminPage() {
     queue: QueueTab,
     generate: GenerateTab,
     community: CommunityTab,
+    social: SocialTab,
   };
   const Current = TABS[tab] || OverviewTab;
 
