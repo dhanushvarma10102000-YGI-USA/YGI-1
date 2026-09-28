@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef } from "react";
-import { ArrowRight, BookOpen, Map, Users, Zap } from "lucide-react";
+import { ArrowRight, BookOpen, PenLine, Users, Zap } from "lucide-react";
 import { Nav } from "@/components/ds/Nav";
 
 type ArchCard = {
@@ -43,21 +43,21 @@ const bottomCards: ArchCard[] = [
 ];
 
 const topics = [
-  { emoji: "🏙️", title: "City Guides", desc: "Explore neighborhoods, costs, transport, and student life in 50+ US cities before you even arrive.", href: "/guide", cta: "Explore cities", accent: "#2f8f86", bg: "#e6f0ee" },
+  { emoji: "🏙️", title: "City Guides", desc: "Explore neighborhoods, costs, transport, and student life in 50+ US cities before you even arrive.", href: "/blog", cta: "Explore cities", accent: "#2f8f86", bg: "#e6f0ee" },
   { emoji: "✍️", title: "Real Journeys", desc: "Honest first-person stories from people who moved to the US — the wins, the struggles, and what they wish they knew.", href: "/stories", cta: "Read stories", accent: "#c2683f", bg: "#f6ede6" },
   { emoji: "📋", title: "Visa & Immigration", desc: "F-1, OPT, CPT, and H-1B explained in plain English. Know your status, rights, and key deadlines.", href: "/blog", cta: "Read the guides", accent: "#8a5aa8", bg: "#f0eaf6" },
   { emoji: "🏦", title: "Banking & Money", desc: "Open a US bank account, build credit from zero, and send money home without losing a fortune in fees.", href: "/blog", cta: "Learn more", accent: "#317a52", bg: "#e6f0eb" },
-  { emoji: "🏠", title: "Housing & Rentals", desc: "Find your first apartment, understand US lease terms, and avoid the traps that catch every newcomer.", href: "/guide", cta: "Find housing tips", accent: "#4a6fb0", bg: "#eaeff8" },
+  { emoji: "🏠", title: "Housing & Rentals", desc: "Find your first apartment, understand US lease terms, and avoid the traps that catch every newcomer.", href: "/blog", cta: "Find housing tips", accent: "#4a6fb0", bg: "#eaeff8" },
   { emoji: "🤝", title: "Community", desc: "Join groups from your city, university, or country. Ask questions, share tips, and make friends before you land.", href: "/community", cta: "Join the community", accent: "#b0593f", bg: "#f7ede9" },
 ];
 
 const features = [
   {
-    icon: Map,
-    title: "City & Campus Guide",
-    desc: "Explore 50+ US cities and top universities. Find neighborhoods, services, costs of living, and everything you need before you arrive.",
-    href: "/guide",
-    cta: "Open the guide",
+    icon: PenLine,
+    title: "Real Journeys",
+    desc: "First-person stories from people who moved to the US — the wins, the struggles, and what they wish they had known.",
+    href: "/stories",
+    cta: "Read journeys",
     accent: "#2f8f86",
     bg: "#e6f0ee",
   },
@@ -89,8 +89,8 @@ const stats = [
 ];
 
 const steps = [
-  { num: "01", title: "Explore a city or campus", desc: "Use the guide to search any US city or university. Get a quick overview of what matters — neighborhoods, costs, transport, and more." },
-  { num: "02", title: "Read from people like you", desc: "Our blogs are written by students and expats who have lived it. Skip the generic advice and get the real story." },
+  { num: "01", title: "Read the guides", desc: "Practical articles on visas, banking, housing, jobs, and city life — the things that matter before and after you land." },
+  { num: "02", title: "Learn from people like you", desc: "Real journeys from students and expats who have lived it. Skip the generic advice and get the real story." },
   { num: "03", title: "Join the community", desc: "Find others from your city, country, or school. Ask questions, share tips, and make connections before you even land." },
 ];
 
@@ -283,9 +283,9 @@ export default function HomePage() {
             <div className="yg-sec-eyebrow">How it works</div>
             <h2 className="yg-sec-title yg-how-title">Three steps to feeling at home</h2>
             <p className="yg-sec-desc" style={{ marginTop: 14 }}>
-              No complicated setup. Just open the guide, read real stories, and find your people.
+              No complicated setup. Just read the guides, hear real stories, and find your people.
             </p>
-            <Link href="/guide" className="yg-btn yg-btn-primary" style={{ marginTop: 32, display: "inline-flex" }}>
+            <Link href="/blog" className="yg-btn yg-btn-primary" style={{ marginTop: 32, display: "inline-flex" }}>
               Get started <ArrowRight size={17} />
             </Link>
           </div>
@@ -313,7 +313,7 @@ export default function HomePage() {
             <div className="yg-banner-sub">It is free and always will be. No sign-up needed to start browsing.</div>
           </div>
           <div className="yg-banner-cta">
-            <Link href="/guide" className="yg-btn yg-btn-primary">Open the guide <ArrowRight size={16} /></Link>
+            <Link href="/blog" className="yg-btn yg-btn-primary">Read the guides <ArrowRight size={16} /></Link>
             <Link href="/community" className="yg-btn yg-btn-ghost-light">Join community</Link>
           </div>
         </div>
@@ -352,7 +352,6 @@ export default function HomePage() {
           </div>
           <div className="yg-foot-links">
             <Link href="/">Home</Link>
-            <Link href="/guide">Guide</Link>
             <Link href="/blog">Blogs</Link>
             <Link href="/community">Community</Link>
             <Link href="/contact">Contact</Link>

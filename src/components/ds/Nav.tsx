@@ -13,7 +13,6 @@ const MAX_PROFILE_PHOTO_SIZE = 10 * 1024 * 1024;
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
-  { href: "/guide", label: "Guide" },
   { href: "/blog", label: "Blogs" },
   { href: "/community", label: "Community" },
   { href: "/stories", label: "Journeys" },

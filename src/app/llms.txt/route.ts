@@ -21,7 +21,6 @@ ${SITE_NAME} helps international students navigate every stage of settling in Am
 
 ## Key pages
 
-- [Guide](${SITE_URL}/guide): Interactive map-based local guide. Search housing, restaurants, banking, healthcare, and campus services near any US city or university.
 - [Blog](${SITE_URL}/blog): Practical articles on visas, OPT, banking, insurance, housing, jobs, city life, and daily essentials for international students.
 - [Community](${SITE_URL}/community): University and city community groups where international students connect, ask questions, and share advice.
 - [Sign up](${SITE_URL}/signup): Create a free account to join community groups and participate.

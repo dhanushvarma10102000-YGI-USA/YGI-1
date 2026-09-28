@@ -270,7 +270,7 @@ export default function PostPageClient({ id, serverPost }: { id: string; serverP
           {/* ── Quick links ── */}
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:12}}>
             {[
-              {href:"/guide",emoji:"📘",label:"Newcomer Guide",sub:"Visas, banking, housing & more"},
+              {href:"/blog",emoji:"📘",label:"Newcomer Guide",sub:"Visas, banking, housing & more"},
               {href:"/blog",emoji:"📝",label:"Articles",sub:"In-depth guides for students"},
               {href:"/community",emoji:"🤝",label:"Community",sub:"Ask questions, get answers"},
               {href:"/stories",emoji:"📖",label:"More Journeys",sub:"Real stories from people like you"},

@@ -607,7 +607,7 @@ export default function AllGroupsDesign({
         <div className="foot-inner">
           <div>© 2026 yourguideinusa - made with care for people far from home.</div>
           <div>
-            <a href="/">Home</a><a href="/guide">Guide</a><a href="/blog">Blogs</a><a href="/community">Community</a><a href="/contact">Contact us</a>
+            <a href="/">Home</a><a href="/blog">Blogs</a><a href="/community">Community</a><a href="/contact">Contact us</a>
           </div>
         </div>
       </footer>

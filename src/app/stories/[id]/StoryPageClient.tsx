@@ -169,7 +169,7 @@ export default function StoryPageClient({ story }: { story: StoryRow }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12 }}>
             {[
               { href: "/stories", emoji: "✍️", label: "More Journeys", sub: "Read other real experiences" },
-              { href: "/guide", emoji: "📘", label: "Newcomer Guide", sub: "Visas, banking, housing & more" },
+              { href: "/blog", emoji: "📘", label: "Newcomer Guide", sub: "Visas, banking, housing & more" },
               { href: "/community", emoji: "🤝", label: "Community", sub: "Ask questions, get answers" },
               { href: "/blog", emoji: "📝", label: "Articles", sub: "In-depth guides for students" },
             ].map((l) => (

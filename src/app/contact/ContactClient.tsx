@@ -341,15 +341,15 @@ export default function ContactClient() {
 
       <section className="mx-auto max-w-[1700px] px-5 pb-4 md:px-8">
         <a
-          href="/guide"
+          href="/blog"
           className="flex flex-col justify-between gap-4 rounded-[18px] border border-[#d8d5cc] bg-[#1a1916] p-6 text-white shadow-[0_32px_70px_-52px_rgba(0,0,0,.75)] transition hover:-translate-y-0.5 sm:flex-row sm:items-center"
         >
           <div>
             <div className="text-lg font-extrabold">Need help choosing a city?</div>
-            <p className="mt-1 text-sm leading-6 text-white/72">Explore housing, food, places, and student-friendly areas on the guide map.</p>
+            <p className="mt-1 text-sm leading-6 text-white/72">Read our city guides on housing, costs, transport, and student life.</p>
           </div>
           <span className="inline-flex items-center gap-2 text-sm font-bold">
-            Open guide
+            Read city guides
             <ArrowRight className="h-4 w-4" />
           </span>
         </a>

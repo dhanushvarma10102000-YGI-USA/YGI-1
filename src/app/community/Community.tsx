@@ -1466,7 +1466,7 @@ function MainPage({
               { label: "Dashboard", icon: Grid2X2, active: false, onClick: onDashboard },
               { label: "Communities", icon: Users, active: true, onClick: () => {} },
               { label: "Messages", icon: MessageCircle, active: false, onClick: onMessages, badge: unreadTotal ? String(unreadTotal) : "" },
-              { label: "Student guide", icon: BookOpen, active: false, onClick: () => (window.location.href = "/guide") },
+              { label: "Student guide", icon: BookOpen, active: false, onClick: () => (window.location.href = "/blog") },
             ].map((item) => {
               const Icon = item.icon;
               return (
@@ -2750,7 +2750,7 @@ function ChatPage({ groups, group, joined, joinedIds, user, onBack, onJoin, onSe
                 { label: "Dashboard", icon: Grid2X2, active: false, onClick: onDashboard, badge: "" },
                 { label: "Communities", icon: Users, active: false, onClick: onBrowse, badge: "" },
                 { label: "Messages", icon: MessageCircle, active: true, onClick: () => {}, badge: visibleUnreadTotal ? String(visibleUnreadTotal) : "" },
-                { label: "Student guide", icon: BookOpen, active: false, onClick: () => (window.location.href = "/guide"), badge: "" },
+                { label: "Student guide", icon: BookOpen, active: false, onClick: () => (window.location.href = "/blog"), badge: "" },
               ].map((item) => {
                 const Icon = item.icon;
                 return (
