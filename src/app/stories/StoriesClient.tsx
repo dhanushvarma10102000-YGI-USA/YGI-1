@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 // Every column except user_id, which is hidden so anonymous stories can't be traced to an account.
 const PUBLIC_STORY_COLUMNS = "id,title,excerpt,body_html,category,city,uni,anon,display_name,upvotes,comments,read_time,created_at";
 
-type View = "feed" | "story" | "form" | "mystories";
+type View = "feed" | "form" | "mystories";
 type RedditPost = {
   id: string;
   title: string;
@@ -22,18 +22,6 @@ type RedditPost = {
 type TrendTab = "trending" | "top" | "new";
 type Chip = { k: string; v: string };
 type SortKey = "newest" | "popular" | "most_comments" | "oldest";
-type CommentData = {
-  id: number;
-  initials: string;
-  color: string;
-  name: string;
-  isAuthor?: boolean;
-  time: string;
-  text: string;
-  likes: number;
-  photo?: boolean;
-  replies: ReplyData[];
-};
 
 type Story = {
   id?: string;
@@ -55,16 +43,6 @@ type EditableStory = {
   created_at: string; upvotes: number; excerpt: string | null;
 };
 
-type ReplyData = {
-  id: number;
-  initials: string;
-  color: string;
-  name: string;
-  isAuthor?: boolean;
-  time: string;
-  text: string;
-  likes: number;
-};
 
 const PLACEHOLDER_BG =
   "repeating-linear-gradient(135deg,#ece2d2 0 11px,#e6dccb 11px 22px)";
@@ -79,84 +57,84 @@ function tag(label: string, kind: "orange" | "teal" | "neutral") {
 }
 
 // Cities grouped by state — all 50 US states
-const CITY_GROUPS: { state: string; cities: { name: string; n: number }[] }[] = [
-  { state: "Alabama", cities: [{ name: "Birmingham", n: 1 }, { name: "Huntsville", n: 1 }, { name: "Mobile", n: 1 }, { name: "Montgomery", n: 1 }, { name: "Tuscaloosa", n: 1 }] },
-  { state: "Alaska", cities: [{ name: "Anchorage", n: 1 }, { name: "Fairbanks", n: 1 }, { name: "Juneau", n: 1 }] },
+const CITY_GROUPS: { state: string; cities: { name: string }[] }[] = [
+  { state: "Alabama", cities: [{ name: "Birmingham" }, { name: "Huntsville" }, { name: "Mobile" }, { name: "Montgomery" }, { name: "Tuscaloosa" }] },
+  { state: "Alaska", cities: [{ name: "Anchorage" }, { name: "Fairbanks" }, { name: "Juneau" }] },
   { state: "Arizona", cities: [
-    { name: "Phoenix", n: 24 }, { name: "Tucson", n: 11 }, { name: "Mesa", n: 8 },
-    { name: "Scottsdale", n: 6 }, { name: "Flagstaff", n: 5 }, { name: "Tempe", n: 5 },
-    { name: "Chandler", n: 4 }, { name: "Gilbert", n: 3 }, { name: "Glendale", n: 3 },
-    { name: "Peoria", n: 2 }, { name: "Surprise", n: 2 }, { name: "Casa Grande", n: 2 },
-    { name: "Prescott", n: 2 }, { name: "Yuma", n: 1 }, { name: "Avondale", n: 1 },
-    { name: "Goodyear", n: 1 }, { name: "Buckeye", n: 1 }, { name: "Queen Creek", n: 1 },
-    { name: "Maricopa", n: 1 }, { name: "Lake Havasu City", n: 1 }, { name: "Sierra Vista", n: 1 },
-    { name: "Bullhead City", n: 1 }, { name: "Apache Junction", n: 1 }, { name: "El Mirage", n: 1 },
-    { name: "Kingman", n: 1 },
+    { name: "Phoenix" }, { name: "Tucson" }, { name: "Mesa" },
+    { name: "Scottsdale" }, { name: "Flagstaff" }, { name: "Tempe" },
+    { name: "Chandler" }, { name: "Gilbert" }, { name: "Glendale" },
+    { name: "Peoria" }, { name: "Surprise" }, { name: "Casa Grande" },
+    { name: "Prescott" }, { name: "Yuma" }, { name: "Avondale" },
+    { name: "Goodyear" }, { name: "Buckeye" }, { name: "Queen Creek" },
+    { name: "Maricopa" }, { name: "Lake Havasu City" }, { name: "Sierra Vista" },
+    { name: "Bullhead City" }, { name: "Apache Junction" }, { name: "El Mirage" },
+    { name: "Kingman" },
   ]},
-  { state: "Arkansas", cities: [{ name: "Little Rock", n: 1 }, { name: "Fayetteville", n: 1 }, { name: "Fort Smith", n: 1 }, { name: "Jonesboro", n: 1 }, { name: "Springdale", n: 1 }] },
+  { state: "Arkansas", cities: [{ name: "Little Rock" }, { name: "Fayetteville" }, { name: "Fort Smith" }, { name: "Jonesboro" }, { name: "Springdale" }] },
   { state: "California", cities: [
-    { name: "Los Angeles", n: 3 }, { name: "San Francisco", n: 2 }, { name: "San Diego", n: 2 },
-    { name: "San Jose", n: 1 }, { name: "Sacramento", n: 1 }, { name: "Oakland", n: 1 },
-    { name: "Fresno", n: 1 }, { name: "Long Beach", n: 1 }, { name: "Berkeley", n: 1 },
-    { name: "Irvine", n: 1 }, { name: "Riverside", n: 1 }, { name: "Santa Ana", n: 1 },
+    { name: "Los Angeles" }, { name: "San Francisco" }, { name: "San Diego" },
+    { name: "San Jose" }, { name: "Sacramento" }, { name: "Oakland" },
+    { name: "Fresno" }, { name: "Long Beach" }, { name: "Berkeley" },
+    { name: "Irvine" }, { name: "Riverside" }, { name: "Santa Ana" },
   ]},
-  { state: "Colorado", cities: [{ name: "Denver", n: 2 }, { name: "Colorado Springs", n: 1 }, { name: "Aurora", n: 1 }, { name: "Fort Collins", n: 1 }, { name: "Boulder", n: 1 }, { name: "Pueblo", n: 1 }] },
-  { state: "Connecticut", cities: [{ name: "Bridgeport", n: 1 }, { name: "New Haven", n: 1 }, { name: "Hartford", n: 1 }, { name: "Stamford", n: 1 }, { name: "Waterbury", n: 1 }] },
-  { state: "Delaware", cities: [{ name: "Wilmington", n: 1 }, { name: "Dover", n: 1 }, { name: "Newark", n: 1 }] },
+  { state: "Colorado", cities: [{ name: "Denver" }, { name: "Colorado Springs" }, { name: "Aurora" }, { name: "Fort Collins" }, { name: "Boulder" }, { name: "Pueblo" }] },
+  { state: "Connecticut", cities: [{ name: "Bridgeport" }, { name: "New Haven" }, { name: "Hartford" }, { name: "Stamford" }, { name: "Waterbury" }] },
+  { state: "Delaware", cities: [{ name: "Wilmington" }, { name: "Dover" }, { name: "Newark" }] },
   { state: "Florida", cities: [
-    { name: "Miami", n: 2 }, { name: "Orlando", n: 2 }, { name: "Tampa", n: 1 },
-    { name: "Jacksonville", n: 1 }, { name: "St. Petersburg", n: 1 }, { name: "Fort Lauderdale", n: 1 },
-    { name: "Tallahassee", n: 1 }, { name: "Gainesville", n: 1 }, { name: "Cape Coral", n: 1 },
+    { name: "Miami" }, { name: "Orlando" }, { name: "Tampa" },
+    { name: "Jacksonville" }, { name: "St. Petersburg" }, { name: "Fort Lauderdale" },
+    { name: "Tallahassee" }, { name: "Gainesville" }, { name: "Cape Coral" },
   ]},
-  { state: "Georgia", cities: [{ name: "Atlanta", n: 2 }, { name: "Columbus", n: 1 }, { name: "Augusta", n: 1 }, { name: "Savannah", n: 1 }, { name: "Athens", n: 1 }] },
-  { state: "Hawaii", cities: [{ name: "Honolulu", n: 1 }, { name: "Hilo", n: 1 }, { name: "Kailua", n: 1 }, { name: "Pearl City", n: 1 }] },
-  { state: "Idaho", cities: [{ name: "Boise", n: 1 }, { name: "Nampa", n: 1 }, { name: "Meridian", n: 1 }, { name: "Idaho Falls", n: 1 }, { name: "Pocatello", n: 1 }] },
-  { state: "Illinois", cities: [{ name: "Chicago", n: 3 }, { name: "Aurora", n: 1 }, { name: "Naperville", n: 1 }, { name: "Joliet", n: 1 }, { name: "Rockford", n: 1 }, { name: "Springfield", n: 1 }, { name: "Evanston", n: 1 }] },
-  { state: "Indiana", cities: [{ name: "Indianapolis", n: 1 }, { name: "Fort Wayne", n: 1 }, { name: "Evansville", n: 1 }, { name: "South Bend", n: 1 }, { name: "Carmel", n: 1 }, { name: "Bloomington", n: 1 }] },
-  { state: "Iowa", cities: [{ name: "Des Moines", n: 1 }, { name: "Cedar Rapids", n: 1 }, { name: "Davenport", n: 1 }, { name: "Sioux City", n: 1 }, { name: "Iowa City", n: 1 }] },
-  { state: "Kansas", cities: [{ name: "Wichita", n: 1 }, { name: "Overland Park", n: 1 }, { name: "Kansas City", n: 1 }, { name: "Olathe", n: 1 }, { name: "Lawrence", n: 1 }] },
-  { state: "Kentucky", cities: [{ name: "Louisville", n: 1 }, { name: "Lexington", n: 1 }, { name: "Bowling Green", n: 1 }, { name: "Owensboro", n: 1 }, { name: "Covington", n: 1 }] },
-  { state: "Louisiana", cities: [{ name: "New Orleans", n: 2 }, { name: "Baton Rouge", n: 1 }, { name: "Shreveport", n: 1 }, { name: "Lafayette", n: 1 }, { name: "Lake Charles", n: 1 }] },
-  { state: "Maine", cities: [{ name: "Portland", n: 1 }, { name: "Lewiston", n: 1 }, { name: "Bangor", n: 1 }, { name: "South Portland", n: 1 }] },
-  { state: "Maryland", cities: [{ name: "Baltimore", n: 2 }, { name: "Rockville", n: 1 }, { name: "Gaithersburg", n: 1 }, { name: "Bowie", n: 1 }, { name: "College Park", n: 1 }, { name: "Annapolis", n: 1 }] },
-  { state: "Massachusetts", cities: [{ name: "Boston", n: 3 }, { name: "Worcester", n: 1 }, { name: "Springfield", n: 1 }, { name: "Cambridge", n: 1 }, { name: "Lowell", n: 1 }, { name: "Somerville", n: 1 }] },
-  { state: "Michigan", cities: [{ name: "Detroit", n: 2 }, { name: "Grand Rapids", n: 1 }, { name: "Warren", n: 1 }, { name: "Sterling Heights", n: 1 }, { name: "Ann Arbor", n: 1 }, { name: "Lansing", n: 1 }, { name: "Dearborn", n: 1 }] },
-  { state: "Minnesota", cities: [{ name: "Minneapolis", n: 2 }, { name: "Saint Paul", n: 1 }, { name: "Rochester", n: 1 }, { name: "Duluth", n: 1 }, { name: "Bloomington", n: 1 }] },
-  { state: "Mississippi", cities: [{ name: "Jackson", n: 1 }, { name: "Gulfport", n: 1 }, { name: "Southaven", n: 1 }, { name: "Hattiesburg", n: 1 }, { name: "Biloxi", n: 1 }] },
-  { state: "Missouri", cities: [{ name: "Kansas City", n: 1 }, { name: "St. Louis", n: 1 }, { name: "Springfield", n: 1 }, { name: "Columbia", n: 1 }, { name: "Independence", n: 1 }] },
-  { state: "Montana", cities: [{ name: "Billings", n: 1 }, { name: "Missoula", n: 1 }, { name: "Great Falls", n: 1 }, { name: "Bozeman", n: 1 }] },
-  { state: "Nebraska", cities: [{ name: "Omaha", n: 1 }, { name: "Lincoln", n: 1 }, { name: "Bellevue", n: 1 }, { name: "Grand Island", n: 1 }] },
-  { state: "Nevada", cities: [{ name: "Las Vegas", n: 2 }, { name: "Henderson", n: 1 }, { name: "Reno", n: 1 }, { name: "North Las Vegas", n: 1 }, { name: "Sparks", n: 1 }] },
-  { state: "New Hampshire", cities: [{ name: "Manchester", n: 1 }, { name: "Nashua", n: 1 }, { name: "Concord", n: 1 }, { name: "Dover", n: 1 }] },
-  { state: "New Jersey", cities: [{ name: "Newark", n: 1 }, { name: "Jersey City", n: 1 }, { name: "Paterson", n: 1 }, { name: "Elizabeth", n: 1 }, { name: "Trenton", n: 1 }, { name: "Edison", n: 1 }] },
-  { state: "New Mexico", cities: [{ name: "Albuquerque", n: 1 }, { name: "Las Cruces", n: 1 }, { name: "Rio Rancho", n: 1 }, { name: "Santa Fe", n: 1 }] },
+  { state: "Georgia", cities: [{ name: "Atlanta" }, { name: "Columbus" }, { name: "Augusta" }, { name: "Savannah" }, { name: "Athens" }] },
+  { state: "Hawaii", cities: [{ name: "Honolulu" }, { name: "Hilo" }, { name: "Kailua" }, { name: "Pearl City" }] },
+  { state: "Idaho", cities: [{ name: "Boise" }, { name: "Nampa" }, { name: "Meridian" }, { name: "Idaho Falls" }, { name: "Pocatello" }] },
+  { state: "Illinois", cities: [{ name: "Chicago" }, { name: "Aurora" }, { name: "Naperville" }, { name: "Joliet" }, { name: "Rockford" }, { name: "Springfield" }, { name: "Evanston" }] },
+  { state: "Indiana", cities: [{ name: "Indianapolis" }, { name: "Fort Wayne" }, { name: "Evansville" }, { name: "South Bend" }, { name: "Carmel" }, { name: "Bloomington" }] },
+  { state: "Iowa", cities: [{ name: "Des Moines" }, { name: "Cedar Rapids" }, { name: "Davenport" }, { name: "Sioux City" }, { name: "Iowa City" }] },
+  { state: "Kansas", cities: [{ name: "Wichita" }, { name: "Overland Park" }, { name: "Kansas City" }, { name: "Olathe" }, { name: "Lawrence" }] },
+  { state: "Kentucky", cities: [{ name: "Louisville" }, { name: "Lexington" }, { name: "Bowling Green" }, { name: "Owensboro" }, { name: "Covington" }] },
+  { state: "Louisiana", cities: [{ name: "New Orleans" }, { name: "Baton Rouge" }, { name: "Shreveport" }, { name: "Lafayette" }, { name: "Lake Charles" }] },
+  { state: "Maine", cities: [{ name: "Portland" }, { name: "Lewiston" }, { name: "Bangor" }, { name: "South Portland" }] },
+  { state: "Maryland", cities: [{ name: "Baltimore" }, { name: "Rockville" }, { name: "Gaithersburg" }, { name: "Bowie" }, { name: "College Park" }, { name: "Annapolis" }] },
+  { state: "Massachusetts", cities: [{ name: "Boston" }, { name: "Worcester" }, { name: "Springfield" }, { name: "Cambridge" }, { name: "Lowell" }, { name: "Somerville" }] },
+  { state: "Michigan", cities: [{ name: "Detroit" }, { name: "Grand Rapids" }, { name: "Warren" }, { name: "Sterling Heights" }, { name: "Ann Arbor" }, { name: "Lansing" }, { name: "Dearborn" }] },
+  { state: "Minnesota", cities: [{ name: "Minneapolis" }, { name: "Saint Paul" }, { name: "Rochester" }, { name: "Duluth" }, { name: "Bloomington" }] },
+  { state: "Mississippi", cities: [{ name: "Jackson" }, { name: "Gulfport" }, { name: "Southaven" }, { name: "Hattiesburg" }, { name: "Biloxi" }] },
+  { state: "Missouri", cities: [{ name: "Kansas City" }, { name: "St. Louis" }, { name: "Springfield" }, { name: "Columbia" }, { name: "Independence" }] },
+  { state: "Montana", cities: [{ name: "Billings" }, { name: "Missoula" }, { name: "Great Falls" }, { name: "Bozeman" }] },
+  { state: "Nebraska", cities: [{ name: "Omaha" }, { name: "Lincoln" }, { name: "Bellevue" }, { name: "Grand Island" }] },
+  { state: "Nevada", cities: [{ name: "Las Vegas" }, { name: "Henderson" }, { name: "Reno" }, { name: "North Las Vegas" }, { name: "Sparks" }] },
+  { state: "New Hampshire", cities: [{ name: "Manchester" }, { name: "Nashua" }, { name: "Concord" }, { name: "Dover" }] },
+  { state: "New Jersey", cities: [{ name: "Newark" }, { name: "Jersey City" }, { name: "Paterson" }, { name: "Elizabeth" }, { name: "Trenton" }, { name: "Edison" }] },
+  { state: "New Mexico", cities: [{ name: "Albuquerque" }, { name: "Las Cruces" }, { name: "Rio Rancho" }, { name: "Santa Fe" }] },
   { state: "New York", cities: [
-    { name: "New York City", n: 2 }, { name: "Buffalo", n: 1 }, { name: "Rochester", n: 1 },
-    { name: "Yonkers", n: 1 }, { name: "Syracuse", n: 1 }, { name: "Albany", n: 1 }, { name: "Ithaca", n: 1 },
+    { name: "New York City" }, { name: "Buffalo" }, { name: "Rochester" },
+    { name: "Yonkers" }, { name: "Syracuse" }, { name: "Albany" }, { name: "Ithaca" },
   ]},
-  { state: "North Carolina", cities: [{ name: "Charlotte", n: 2 }, { name: "Raleigh", n: 1 }, { name: "Greensboro", n: 1 }, { name: "Durham", n: 1 }, { name: "Winston-Salem", n: 1 }, { name: "Chapel Hill", n: 1 }] },
-  { state: "North Dakota", cities: [{ name: "Fargo", n: 1 }, { name: "Bismarck", n: 1 }, { name: "Grand Forks", n: 1 }, { name: "Minot", n: 1 }] },
-  { state: "Ohio", cities: [{ name: "Columbus", n: 2 }, { name: "Cleveland", n: 1 }, { name: "Cincinnati", n: 1 }, { name: "Toledo", n: 1 }, { name: "Akron", n: 1 }, { name: "Dayton", n: 1 }] },
-  { state: "Oklahoma", cities: [{ name: "Oklahoma City", n: 1 }, { name: "Tulsa", n: 1 }, { name: "Norman", n: 1 }, { name: "Broken Arrow", n: 1 }, { name: "Edmond", n: 1 }] },
-  { state: "Oregon", cities: [{ name: "Portland", n: 2 }, { name: "Salem", n: 1 }, { name: "Eugene", n: 1 }, { name: "Gresham", n: 1 }, { name: "Hillsboro", n: 1 }, { name: "Corvallis", n: 1 }] },
-  { state: "Pennsylvania", cities: [{ name: "Philadelphia", n: 2 }, { name: "Pittsburgh", n: 1 }, { name: "Allentown", n: 1 }, { name: "Erie", n: 1 }, { name: "Reading", n: 1 }, { name: "State College", n: 1 }] },
-  { state: "Rhode Island", cities: [{ name: "Providence", n: 1 }, { name: "Warwick", n: 1 }, { name: "Cranston", n: 1 }, { name: "Pawtucket", n: 1 }] },
-  { state: "South Carolina", cities: [{ name: "Columbia", n: 1 }, { name: "Charleston", n: 1 }, { name: "North Charleston", n: 1 }, { name: "Greenville", n: 1 }, { name: "Rock Hill", n: 1 }] },
-  { state: "South Dakota", cities: [{ name: "Sioux Falls", n: 1 }, { name: "Rapid City", n: 1 }, { name: "Aberdeen", n: 1 }] },
-  { state: "Tennessee", cities: [{ name: "Nashville", n: 2 }, { name: "Memphis", n: 1 }, { name: "Knoxville", n: 1 }, { name: "Chattanooga", n: 1 }, { name: "Clarksville", n: 1 }] },
+  { state: "North Carolina", cities: [{ name: "Charlotte" }, { name: "Raleigh" }, { name: "Greensboro" }, { name: "Durham" }, { name: "Winston-Salem" }, { name: "Chapel Hill" }] },
+  { state: "North Dakota", cities: [{ name: "Fargo" }, { name: "Bismarck" }, { name: "Grand Forks" }, { name: "Minot" }] },
+  { state: "Ohio", cities: [{ name: "Columbus" }, { name: "Cleveland" }, { name: "Cincinnati" }, { name: "Toledo" }, { name: "Akron" }, { name: "Dayton" }] },
+  { state: "Oklahoma", cities: [{ name: "Oklahoma City" }, { name: "Tulsa" }, { name: "Norman" }, { name: "Broken Arrow" }, { name: "Edmond" }] },
+  { state: "Oregon", cities: [{ name: "Portland" }, { name: "Salem" }, { name: "Eugene" }, { name: "Gresham" }, { name: "Hillsboro" }, { name: "Corvallis" }] },
+  { state: "Pennsylvania", cities: [{ name: "Philadelphia" }, { name: "Pittsburgh" }, { name: "Allentown" }, { name: "Erie" }, { name: "Reading" }, { name: "State College" }] },
+  { state: "Rhode Island", cities: [{ name: "Providence" }, { name: "Warwick" }, { name: "Cranston" }, { name: "Pawtucket" }] },
+  { state: "South Carolina", cities: [{ name: "Columbia" }, { name: "Charleston" }, { name: "North Charleston" }, { name: "Greenville" }, { name: "Rock Hill" }] },
+  { state: "South Dakota", cities: [{ name: "Sioux Falls" }, { name: "Rapid City" }, { name: "Aberdeen" }] },
+  { state: "Tennessee", cities: [{ name: "Nashville" }, { name: "Memphis" }, { name: "Knoxville" }, { name: "Chattanooga" }, { name: "Clarksville" }] },
   { state: "Texas", cities: [
-    { name: "Houston", n: 2 }, { name: "Dallas", n: 1 }, { name: "Austin", n: 1 },
-    { name: "San Antonio", n: 1 }, { name: "Fort Worth", n: 1 }, { name: "El Paso", n: 1 },
-    { name: "Arlington", n: 1 }, { name: "Plano", n: 1 }, { name: "Lubbock", n: 1 },
-    { name: "Irving", n: 1 }, { name: "Garland", n: 1 }, { name: "College Station", n: 1 },
+    { name: "Houston" }, { name: "Dallas" }, { name: "Austin" },
+    { name: "San Antonio" }, { name: "Fort Worth" }, { name: "El Paso" },
+    { name: "Arlington" }, { name: "Plano" }, { name: "Lubbock" },
+    { name: "Irving" }, { name: "Garland" }, { name: "College Station" },
   ]},
-  { state: "Utah", cities: [{ name: "Salt Lake City", n: 1 }, { name: "West Valley City", n: 1 }, { name: "Provo", n: 1 }, { name: "West Jordan", n: 1 }, { name: "Orem", n: 1 }] },
-  { state: "Vermont", cities: [{ name: "Burlington", n: 1 }, { name: "Essex", n: 1 }, { name: "South Burlington", n: 1 }] },
-  { state: "Virginia", cities: [{ name: "Virginia Beach", n: 1 }, { name: "Norfolk", n: 1 }, { name: "Chesapeake", n: 1 }, { name: "Richmond", n: 1 }, { name: "Arlington", n: 1 }, { name: "Alexandria", n: 1 }, { name: "Charlottesville", n: 1 }] },
-  { state: "Washington", cities: [{ name: "Seattle", n: 2 }, { name: "Spokane", n: 1 }, { name: "Tacoma", n: 1 }, { name: "Bellevue", n: 1 }, { name: "Kirkland", n: 1 }, { name: "Redmond", n: 1 }] },
-  { state: "West Virginia", cities: [{ name: "Charleston", n: 1 }, { name: "Huntington", n: 1 }, { name: "Morgantown", n: 1 }, { name: "Parkersburg", n: 1 }] },
-  { state: "Wisconsin", cities: [{ name: "Milwaukee", n: 1 }, { name: "Madison", n: 1 }, { name: "Green Bay", n: 1 }, { name: "Kenosha", n: 1 }, { name: "Racine", n: 1 }] },
-  { state: "Wyoming", cities: [{ name: "Cheyenne", n: 1 }, { name: "Casper", n: 1 }, { name: "Laramie", n: 1 }] },
+  { state: "Utah", cities: [{ name: "Salt Lake City" }, { name: "West Valley City" }, { name: "Provo" }, { name: "West Jordan" }, { name: "Orem" }] },
+  { state: "Vermont", cities: [{ name: "Burlington" }, { name: "Essex" }, { name: "South Burlington" }] },
+  { state: "Virginia", cities: [{ name: "Virginia Beach" }, { name: "Norfolk" }, { name: "Chesapeake" }, { name: "Richmond" }, { name: "Arlington" }, { name: "Alexandria" }, { name: "Charlottesville" }] },
+  { state: "Washington", cities: [{ name: "Seattle" }, { name: "Spokane" }, { name: "Tacoma" }, { name: "Bellevue" }, { name: "Kirkland" }, { name: "Redmond" }] },
+  { state: "West Virginia", cities: [{ name: "Charleston" }, { name: "Huntington" }, { name: "Morgantown" }, { name: "Parkersburg" }] },
+  { state: "Wisconsin", cities: [{ name: "Milwaukee" }, { name: "Madison" }, { name: "Green Bay" }, { name: "Kenosha" }, { name: "Racine" }] },
+  { state: "Wyoming", cities: [{ name: "Cheyenne" }, { name: "Casper" }, { name: "Laramie" }] },
 ];
 
 // Flat city list for filtering logic
@@ -164,43 +142,43 @@ const CITIES = CITY_GROUPS.flatMap((g) => g.cities);
 
 const UNIS = [
   // Arizona Public Universities
-  { name: "Arizona State University", n: 15 },
-  { name: "University of Arizona", n: 12 },
-  { name: "Northern Arizona University", n: 7 },
+  { name: "Arizona State University" },
+  { name: "University of Arizona" },
+  { name: "Northern Arizona University" },
   // Arizona Private Universities
-  { name: "Grand Canyon University", n: 5 },
-  { name: "University of Phoenix", n: 3 },
-  { name: "Embry-Riddle Aeronautical University", n: 2 },
-  { name: "Western International University", n: 1 },
-  { name: "Midwestern University", n: 1 },
-  { name: "University of Advancing Technology", n: 1 },
-  { name: "Thunderbird School of Global Management", n: 1 },
-  { name: "A.T. Still University", n: 1 },
-  { name: "Prescott College", n: 1 },
-  { name: "Ottawa University Arizona", n: 1 },
+  { name: "Grand Canyon University" },
+  { name: "University of Phoenix" },
+  { name: "Embry-Riddle Aeronautical University" },
+  { name: "Western International University" },
+  { name: "Midwestern University" },
+  { name: "University of Advancing Technology" },
+  { name: "Thunderbird School of Global Management" },
+  { name: "A.T. Still University" },
+  { name: "Prescott College" },
+  { name: "Ottawa University Arizona" },
   // Maricopa County Community Colleges
-  { name: "Maricopa Community College", n: 4 },
-  { name: "Scottsdale Community College", n: 2 },
-  { name: "Glendale Community College", n: 2 },
-  { name: "Mesa Community College", n: 2 },
-  { name: "Phoenix College", n: 2 },
-  { name: "South Mountain Community College", n: 1 },
-  { name: "Chandler-Gilbert Community College", n: 1 },
-  { name: "GateWay Community College", n: 1 },
-  { name: "Paradise Valley Community College", n: 1 },
-  { name: "Rio Salado College", n: 1 },
-  { name: "Estrella Mountain Community College", n: 1 },
+  { name: "Maricopa Community College" },
+  { name: "Scottsdale Community College" },
+  { name: "Glendale Community College" },
+  { name: "Mesa Community College" },
+  { name: "Phoenix College" },
+  { name: "South Mountain Community College" },
+  { name: "Chandler-Gilbert Community College" },
+  { name: "GateWay Community College" },
+  { name: "Paradise Valley Community College" },
+  { name: "Rio Salado College" },
+  { name: "Estrella Mountain Community College" },
   // Pima County
-  { name: "Pima Community College", n: 3 },
+  { name: "Pima Community College" },
   // Other AZ
-  { name: "Cochise College", n: 1 },
-  { name: "Central Arizona College", n: 1 },
-  { name: "Eastern Arizona College", n: 1 },
-  { name: "Mohave Community College", n: 1 },
-  { name: "Northland Pioneer College", n: 1 },
-  { name: "Yavapai College", n: 1 },
-  { name: "Arizona Western College", n: 1 },
-  { name: "Tohono O'odham Community College", n: 1 },
+  { name: "Cochise College" },
+  { name: "Central Arizona College" },
+  { name: "Eastern Arizona College" },
+  { name: "Mohave Community College" },
+  { name: "Northland Pioneer College" },
+  { name: "Yavapai College" },
+  { name: "Arizona Western College" },
+  { name: "Tohono O'odham Community College" },
 ];
 
 const CATEGORIES = [
@@ -223,6 +201,15 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 
 const EMPTY_STORIES: Story[] = [];
 
+function countBy(stories: Story[], key: "city" | "uni"): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const st of stories) {
+    const value = st[key];
+    if (value) map[value] = (map[value] || 0) + 1;
+  }
+  return map;
+}
+
 function dbRowToStory(row: Record<string, any>): Story {
   const daysAgo = Math.floor((Date.now() - new Date(row.created_at).getTime()) / 86_400_000);
   const displayName: string = row.display_name || "Member";
@@ -244,13 +231,7 @@ function dbRowToStory(row: Record<string, any>): Story {
   };
 }
 
-const TREND_DATA: Record<TrendTab, { title: string; votes: number; storyIdx: number }[]> = {
-  trending: [],
-  top: [],
-  new: [],
-};
 
-const INITIAL_COMMENTS: CommentData[] = [];
 
 const CSS = `
 .sy-page { min-height:100vh; background:#e9e8e4; font-family:'Public Sans',system-ui,sans-serif; }
@@ -404,12 +385,12 @@ function Toast({ msg, onDone }: { msg: string; onDone: () => void }) {
 }
 
 /* ── Scrollable filter dropdown with built-in search ── */
-function FilterDrop({ options, selected, onSelect, onClose, multiCount }: {
-  options: { name: string; n?: number }[];
+function FilterDrop({ options, selected, onSelect, onClose, counts }: {
+  options: { name: string }[];
   selected: string;
   onSelect: (v: string) => void;
   onClose: () => void;
-  multiCount?: boolean;
+  counts?: Record<string, number>;
 }) {
   const [q, setQ] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -458,8 +439,8 @@ function FilterDrop({ options, selected, onSelect, onClose, multiCount }: {
               }}>
               <span style={{ flex: 1 }}>{opt.name}</span>
               <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                {multiCount && opt.n !== undefined && (
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 7px", borderRadius: 999 }}>{opt.n}</span>
+                {(counts?.[opt.name] ?? 0) > 0 && (
+                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 7px", borderRadius: 999 }}>{counts?.[opt.name]}</span>
                 )}
                 {active && <IconCheck />}
               </span>
@@ -499,13 +480,8 @@ function SearchSuggestions({ query, onSelect, onClose, stories }: {
   const hasResults = storyMatches.length > 0 || cityMatches.length > 0 || uniMatches.length > 0;
 
   // Real counts from loaded stories
-  const suggUniCounts = useMemo<Record<string, number>>(() => {
-    const map: Record<string, number> = {};
-    for (const s of stories) {
-      if (s.uni) map[s.uni] = (map[s.uni] || 0) + 1;
-    }
-    return map;
-  }, [stories]);
+  const suggUniCounts = useMemo(() => countBy(stories, "uni"), [stories]);
+  const suggCityCounts = useMemo(() => countBy(stories, "city"), [stories]);
 
   return (
     <div ref={ref} style={{
@@ -544,7 +520,9 @@ function SearchSuggestions({ query, onSelect, onClose, stories }: {
               padding: "9px 13px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit",
             }}>
               <span style={{ fontSize: 13.5, fontWeight: 500, color: "#221f1b" }}>{c.name}</span>
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 8px", borderRadius: 999 }}>{c.n} stories</span>
+              {(suggCityCounts[c.name] ?? 0) > 0 && (
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 8px", borderRadius: 999 }}>{suggCityCounts[c.name]} stories</span>
+              )}
             </button>
           ))}
         </>
@@ -573,11 +551,10 @@ function SearchSuggestions({ query, onSelect, onClose, stories }: {
    FEED VIEW
 ═══════════════════════════════════════ */
 function FeedView({
-  onShareStory, onOpenStory, onMyStories,
+  onShareStory, onMyStories,
   upvoteCounts, votedIds, onToggleVote, stories, storiesLoading, user,
 }: {
   onShareStory: () => void;
-  onOpenStory: (idx: number) => void;
   onMyStories: () => void;
   upvoteCounts: number[];
   votedIds: Set<string>;
@@ -712,13 +689,21 @@ function FeedView({
 
   // City sidebar: state-list or city-list depending on selectedState
   // Real per-university story counts derived from loaded stories
-  const uniCounts = useMemo<Record<string, number>>(() => {
-    const map: Record<string, number> = {};
-    for (const s of stories) {
-      if (s.uni) map[s.uni] = (map[s.uni] || 0) + 1;
-    }
-    return map;
-  }, [stories]);
+  const uniCounts = useMemo(() => countBy(stories, "uni"), [stories]);
+  const cityCounts = useMemo(() => countBy(stories, "city"), [stories]);
+
+  // Trending sidebar from the real, saved stories (only ones with an id can be opened)
+  const trendData = useMemo<Record<TrendTab, { id: string; title: string; votes: number }[]>>(() => {
+    const saved = stories
+      .map((st, i) => ({ id: st.id || "", title: st.title, votes: upvoteCounts[i] ?? st.upvotes, daysAgo: st.daysAgo }))
+      .filter((st) => st.id);
+    const pick = (sorted: typeof saved) => sorted.slice(0, 5).map(({ id, title, votes }) => ({ id, title, votes }));
+    return {
+      trending: pick([...saved].sort((a, b) => b.votes / (b.daysAgo + 2) - a.votes / (a.daysAgo + 2))),
+      top: pick([...saved].sort((a, b) => b.votes - a.votes)),
+      new: pick([...saved].sort((a, b) => a.daysAgo - b.daysAgo)),
+    };
+  }, [stories, upvoteCounts]);
 
   const filteredStates = stateSearch
     ? CITY_GROUPS.filter((g) => g.state.toLowerCase().includes(stateSearch.toLowerCase()))
@@ -791,7 +776,9 @@ function FeedView({
                         <li key={c.name}>
                           <button onClick={() => addChip("City", c.name)} className="sy-list-row" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", background: cityChip?.v === c.name ? "#eef3f1" : "none", border: "none", padding: "6px 9px", borderRadius: 8, cursor: "pointer", fontFamily: "inherit" }}>
                             <span style={{ fontSize: 13, color: "#46423a", fontWeight: 500 }}>{c.name}</span>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 7px", borderRadius: 999 }}>{c.n}</span>
+                            {(cityCounts[c.name] ?? 0) > 0 && (
+                              <span style={{ fontSize: 11, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 7px", borderRadius: 999 }}>{cityCounts[c.name]}</span>
+                            )}
                           </button>
                         </li>
                       ))}
@@ -1045,7 +1032,7 @@ function FeedView({
                 <IconChevron rotated={openFilter === "uni"} />
               </button>
               {openFilter === "uni" && (
-                <FilterDrop options={UNIS} selected={uniChip?.v || ""} onSelect={(v) => addChip("University", v)} onClose={() => setOpenFilter(null)} multiCount />
+                <FilterDrop options={UNIS} selected={uniChip?.v || ""} onSelect={(v) => addChip("University", v)} onClose={() => setOpenFilter(null)} counts={uniCounts} />
               )}
             </div>
             {/* City */}
@@ -1057,7 +1044,7 @@ function FeedView({
                 <IconChevron rotated={openFilter === "city"} />
               </button>
               {openFilter === "city" && (
-                <FilterDrop options={CITIES} selected={cityChip?.v || ""} onSelect={(v) => addChip("City", v)} onClose={() => setOpenFilter(null)} multiCount />
+                <FilterDrop options={CITIES} selected={cityChip?.v || ""} onSelect={(v) => addChip("City", v)} onClose={() => setOpenFilter(null)} counts={cityCounts} />
               )}
             </div>
             {/* Category */}
@@ -1164,7 +1151,7 @@ function FeedView({
                 const voted = s.id ? votedIds.has(s.id) : false;
                 const CardEl = s.id ? "a" : "article";
                 return (
-                  <CardEl key={idx} {...(s.id ? { href: `/stories/${s.id}` } : { onClick: () => onOpenStory(idx) })} className="sy-story-card" style={{ display: "flex", gap: 18, background: "#fff", border: "1px solid #ece6dc", borderRadius: 16, padding: 18, cursor: "pointer", boxShadow: "0 1px 2px rgba(40,33,20,0.04)", textDecoration: "none", color: "inherit" }}>
+                  <CardEl key={idx} {...(s.id ? { href: `/stories/${s.id}` } : {})} className="sy-story-card" style={{ display: "flex", gap: 18, background: "#fff", border: "1px solid #ece6dc", borderRadius: 16, padding: 18, cursor: "pointer", boxShadow: "0 1px 2px rgba(40,33,20,0.04)", textDecoration: "none", color: "inherit" }}>
                     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
                         {s.tags.map((t, ti) => (
@@ -1235,12 +1222,12 @@ function FeedView({
               })}
             </div>
             <div style={{ padding: 7, display: "flex", flexDirection: "column", gap: 1 }}>
-              {TREND_DATA[trendTab].length === 0 ? (
+              {trendData[trendTab].length === 0 ? (
                 <div style={{ padding: "20px 10px", textAlign: "center" }}>
                   <p style={{ fontSize: 13, color: "#b0a898", margin: 0, lineHeight: 1.5 }}>No stories yet.<br />Be the first to share.</p>
                 </div>
-              ) : TREND_DATA[trendTab].map((ti, i) => (
-                <button key={i} className="sy-trend-item" onClick={() => onOpenStory(ti.storyIdx)} style={{ display: "flex", alignItems: "center", gap: 11, background: "none", border: "none", padding: "9px 9px", borderRadius: 11, cursor: "pointer", textAlign: "left", fontFamily: "inherit", width: "100%" }}>
+              ) : trendData[trendTab].map((ti) => (
+                <a key={ti.id} href={`/stories/${ti.id}`} className="sy-trend-item" style={{ textDecoration: "none", display: "flex", alignItems: "center", gap: 11, background: "none", border: "none", padding: "9px 9px", borderRadius: 11, cursor: "pointer", textAlign: "left", fontFamily: "inherit", width: "100%" }}>
                   <span style={{ flexShrink: 0, position: "relative", width: 46, height: 46, borderRadius: 9, overflow: "hidden", border: "1px solid #ece6dc" }}>
                     <span style={{ position: "absolute", inset: 0, background: PLACEHOLDER_BG }} />
                   </span>
@@ -1250,7 +1237,7 @@ function FeedView({
                       <span style={{ color: "#0f6f67", fontSize: 9 }}>▲</span> {ti.votes}
                     </span>
                   </span>
-                </button>
+                </a>
               ))}
             </div>
           </section>
@@ -1263,243 +1250,6 @@ function FeedView({
             </button>
           </section>
         </aside>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════
-   STORY VIEW
-═══════════════════════════════════════ */
-function StoryView({ onBack, onShareStory }: { onBack: () => void; onShareStory: () => void }) {
-  const [upvoted, setUpvoted] = useState(false);
-  const [upvoteCount, setUpvoteCount] = useState(342);
-  const [reacted, setReacted] = useState<Set<string>>(new Set());
-  const [reactionCounts, setReactionCounts] = useState<Record<string, number>>({ Relate: 128, Inspiring: 94, Helpful: 211, Touched: 67 });
-  const [commentText, setCommentText] = useState("");
-  const [comments, setComments] = useState<CommentData[]>(INITIAL_COMMENTS);
-  const [replyingTo, setReplyingTo] = useState<number | null>(null);
-  const [replyTexts, setReplyTexts] = useState<Record<number, string>>({});
-  const [commentLikes, setCommentLikes] = useState<Record<string, number>>({ "c1": 24, "r1-11": 6, "c2": 31, "r2-21": 9 });
-  const [commentLiked, setCommentLiked] = useState<Set<string>>(new Set());
-  const [sortOpen, setSortOpen] = useState(false);
-  const [commentSort, setCommentSort] = useState<"helpful" | "newest">("helpful");
-  const sortRef = useRef<HTMLDivElement>(null);
-  const nextId = useRef(100);
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => { if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-
-  const toggleUpvote = () => { setUpvoted((v) => { setUpvoteCount((c) => v ? c - 1 : c + 1); return !v; }); };
-  const toggleReaction = (label: string) => {
-    setReacted((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) { next.delete(label); setReactionCounts((c) => ({ ...c, [label]: c[label] - 1 })); }
-      else { next.add(label); setReactionCounts((c) => ({ ...c, [label]: c[label] + 1 })); }
-      return next;
-    });
-  };
-  const toggleCommentLike = (key: string, init: number) => {
-    setCommentLiked((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) { next.delete(key); setCommentLikes((c) => ({ ...c, [key]: (c[key] ?? init) - 1 })); }
-      else { next.add(key); setCommentLikes((c) => ({ ...c, [key]: (c[key] ?? init) + 1 })); }
-      return next;
-    });
-  };
-  const postComment = () => {
-    if (!commentText.trim()) return;
-    const id = ++nextId.current;
-    setComments((prev) => [{ id, initials: "YO", color: "#ddd6c8", name: "You", time: "just now", text: commentText.trim(), likes: 0, replies: [] }, ...prev]);
-    setCommentText("");
-  };
-  const postReply = (ci: number) => {
-    const text = replyTexts[ci]?.trim();
-    if (!text) return;
-    const id = ++nextId.current;
-    setComments((prev) => prev.map((c, i) => i === ci ? { ...c, replies: [...c.replies, { id, initials: "YO", color: "#ddd6c8", name: "You", time: "just now", text, likes: 0 }] } : c));
-    setReplyTexts((r) => ({ ...r, [ci]: "" }));
-    setReplyingTo(null);
-  };
-
-  const sortedComments = commentSort === "newest" ? [...comments].reverse() : comments;
-  const reactions = [{ emoji: "❤️", label: "Relate" }, { emoji: "🙌", label: "Inspiring" }, { emoji: "🙏", label: "Helpful" }, { emoji: "😢", label: "Touched" }];
-
-  return (
-    <div className="sy-frame">
-      <div style={{ maxWidth: 720, margin: "0 auto", background: "#fff", borderRadius: 18, padding: "32px 36px", boxShadow: "0 1px 3px rgba(40,33,20,0.06),0 8px 24px rgba(40,33,20,0.05)" }}>
-        <button onClick={onBack} className="sy-back-btn" style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "none", border: "none", fontSize: 13.5, fontWeight: 600, color: "#8a8378", cursor: "pointer", padding: 0, marginBottom: 24, fontFamily: "inherit" }}>
-          <IconBack /> Back to journeys
-        </button>
-
-        <div style={{ marginBottom: 16 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, letterSpacing: "0.02em", padding: "4px 11px", borderRadius: 999, background: "#f8ebe2", color: "#b5562d" }}>Daily Life</span>
-        </div>
-
-        <h1 style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: 42, fontWeight: 600, lineHeight: 1.14, color: "#1f1c18", margin: "0 0 22px", letterSpacing: "-0.015em" }}>The morning my SSN card finally arrived</h1>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 30 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 40, height: 40, borderRadius: 999, background: "#0f6f67", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700 }}>LM</span>
-            <div>
-              <div style={{ fontSize: 14.5, fontWeight: 700, color: "#221f1b", lineHeight: 1.2 }}>Lina M.</div>
-              <div style={{ fontSize: 12.5, color: "#9a9082", marginTop: 2 }}>Posted March 12, 2026 · 6 min read</div>
-            </div>
-          </div>
-          <span style={{ width: 1, height: 26, background: "#e2dccf" }} />
-          <div style={{ display: "flex", gap: 7 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, padding: "4px 11px", borderRadius: 999, background: "#e9f0ee", color: "#0b544e" }}>Arizona State University</span>
-            <span style={{ display: "inline-flex", alignItems: "center", fontSize: 11.5, fontWeight: 600, padding: "4px 11px", borderRadius: 999, background: "#f1ece3", color: "#6f685c" }}>Phoenix</span>
-          </div>
-        </div>
-
-        <div style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: 19, lineHeight: 1.85, color: "#332f28" }}>
-          <p style={{ margin: "0 0 22px" }}>I had been in the country for three months and eleven days when the envelope showed up. Plain, official, almost disappointing in how ordinary it looked for something I had thought about every single day.</p>
-          <p style={{ margin: "0 0 22px" }}>Before it came, nothing worked the way I expected. I couldn&rsquo;t open a real bank account. I couldn&rsquo;t sign a lease in my own name. Every form had a box I couldn&rsquo;t fill, and every &ldquo;we&rsquo;ll need your Social&rdquo; felt like a small door closing.</p>
-          <blockquote style={{ margin: "30px 0", padding: "6px 0 6px 22px", borderLeft: "3px solid #0f6f67", fontStyle: "italic", color: "#1f1c18", fontSize: 21, lineHeight: 1.6 }}>
-            The hardest part was never the paperwork. It was feeling like I didn&rsquo;t quite exist yet.
-          </blockquote>
-          <p style={{ margin: "0 0 22px" }}>What got me through the waiting wasn&rsquo;t a website or a checklist, though I read plenty of both. It was a librarian named Gloria at the Burton Barr branch who sat with me twice, read the forms out loud, and circled the lines I&rsquo;d missed in soft pencil so I could erase them later.</p>
-          <figure style={{ margin: "8px 0 26px" }}>
-            <div style={{ position: "relative", width: "100%", height: 300, borderRadius: 14, overflow: "hidden", border: "1px solid #ece6dc" }}>
-              <div style={{ position: "absolute", inset: 0, background: PLACEHOLDER_BG }} />
-              <span style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontFamily: "ui-monospace,monospace", fontSize: 11, letterSpacing: "0.1em", color: "#a89c88", textTransform: "uppercase" }}>photo added by author</span>
-            </div>
-            <figcaption style={{ fontFamily: "'Public Sans',system-ui,sans-serif", fontSize: 13, color: "#9a9082", marginTop: 9 }}>The envelope, on my kitchen table that morning.</figcaption>
-          </figure>
-          <p style={{ margin: "0 0 22px" }}>So if you&rsquo;re in the waiting part right now — the part where everything feels provisional — I want you to know it ends. Not all at once, and not as dramatically as you hope. But one ordinary morning, the envelope shows up, and you get to start being a full person here.</p>
-        </div>
-
-        {/* Reactions + upvote */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "36px 0 0", padding: "20px 0", borderTop: "1px solid #ece6dc", borderBottom: "1px solid #ece6dc" }}>
-          {reactions.map((r) => {
-            const active = reacted.has(r.label);
-            return (
-              <button key={r.label} onClick={() => toggleReaction(r.label)} className="sy-reaction-btn" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: active ? "1px solid #d4703f" : "1px solid #e2dccf", borderRadius: 999, padding: "8px 15px", background: active ? "#fdf6f1" : "#fff", fontSize: 13.5, fontWeight: 600, color: "#46423a", cursor: "pointer", fontFamily: "inherit" }}>
-                <span style={{ fontSize: 15 }}>{r.emoji}</span> {r.label} <span style={{ color: "#9a9082" }}>{reactionCounts[r.label]}</span>
-              </button>
-            );
-          })}
-          <span style={{ flex: 1 }} />
-          <button onClick={toggleUpvote} className="sy-upvote-large" style={{ display: "inline-flex", alignItems: "center", gap: 8, border: "1px solid #0f6f67", borderRadius: 999, padding: "8px 17px", background: upvoted ? "#0f6f67" : "#e9f0ee", color: upvoted ? "#fff" : "#0b544e", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-            <span style={{ fontSize: 12 }}>▲</span> Upvote · {upvoteCount}
-          </button>
-        </div>
-
-        {/* CTA */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20, background: "linear-gradient(135deg,#fbf1e9,#f8ece3)", border: "1px solid #f0ddcf", borderRadius: 16, padding: "24px 26px", margin: "32px 0" }}>
-          <div>
-            <div style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: 21, fontWeight: 600, color: "#7d3f1d", lineHeight: 1.3 }}>Been through something similar?</div>
-            <div style={{ fontSize: 14, color: "#8a6a50", marginTop: 4 }}>Your story could be the one that helps the next person feel less alone.</div>
-          </div>
-          <button onClick={onShareStory} className="sy-btn-terra" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 8, background: "#d4703f", color: "#fff", border: "none", borderRadius: 12, padding: "13px 22px", fontSize: 14.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
-            Share your own story <span style={{ fontSize: 16 }}>→</span>
-          </button>
-        </div>
-
-        {/* Comments */}
-        <div style={{ marginTop: 40 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-            <h3 style={{ fontFamily: "'Newsreader',Georgia,serif", fontSize: 23, fontWeight: 600, color: "#221f1b", margin: 0 }}>
-              Comments · {47 + comments.length - INITIAL_COMMENTS.length}
-            </h3>
-            <div ref={sortRef} style={{ position: "relative" }}>
-              <button onClick={() => setSortOpen((o) => !o)} style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#fff", border: "1px solid #e2dccf", borderRadius: 10, padding: "8px 13px", fontSize: 13, fontWeight: 600, color: "#46423a", cursor: "pointer", fontFamily: "inherit" }}>
-                {commentSort === "helpful" ? "Most Helpful" : "Newest"} <IconChevron rotated={sortOpen} />
-              </button>
-              {sortOpen && (
-                <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "#fff", border: "1px solid #e2dccf", borderRadius: 10, overflow: "hidden", boxShadow: "0 8px 20px rgba(40,33,20,0.1)", zIndex: 10, minWidth: 150 }}>
-                  {(["helpful", "newest"] as const).map((s) => (
-                    <button key={s} className="sy-drop-item" onClick={() => { setCommentSort(s); setSortOpen(false); }} style={{ width: "100%", padding: "10px 15px", background: commentSort === s ? "#f4f0e8" : "none", border: "none", fontSize: 13.5, color: "#221f1b", cursor: "pointer", textAlign: "left", fontFamily: "inherit", fontWeight: commentSort === s ? 600 : 400 }}>
-                      {s === "helpful" ? "Most Helpful" : "Newest"}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Composer */}
-          <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
-            <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 999, background: "#ddd6c8", color: "#7a7264", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>You</span>
-            <div style={{ flex: 1 }}>
-              <textarea placeholder="Add a comment… (Cmd+Enter to post)" value={commentText} onChange={(e) => setCommentText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) postComment(); }} rows={commentText ? 3 : 1}
-                style={{ width: "100%", border: "1px solid #e2dccf", borderRadius: 13, background: "#fff", padding: "12px 15px", fontSize: 14, color: "#221f1b", fontFamily: "inherit", resize: "none", outline: "none", lineHeight: 1.6 }} />
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                <button onClick={postComment} className="sy-post-comment-btn" style={{ background: "#0f6f67", color: "#fff", border: "none", borderRadius: 10, padding: "9px 18px", fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Post comment</button>
-              </div>
-            </div>
-          </div>
-
-          {/* Comments list */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
-            {sortedComments.map((c, ci) => {
-              const cKey = `c${c.id}`;
-              return (
-                <div key={c.id}>
-                  <div style={{ display: "flex", gap: 12 }}>
-                    <span style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 999, background: c.color, color: c.color === "#ddd6c8" ? "#7a7264" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700 }}>{c.initials}</span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: "#221f1b" }}>{c.name}</span>
-                        {c.isAuthor && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#0b544e", background: "#e0ece9", padding: "2px 8px", borderRadius: 999 }}>Author</span>}
-                        <span style={{ fontSize: 12.5, color: "#a8a195" }}>{c.time}</span>
-                      </div>
-                      <p style={{ fontSize: 14.5, lineHeight: 1.6, color: "#3a362f", margin: "0 0 9px" }}>{c.text}</p>
-                      {c.photo && (
-                        <div style={{ position: "relative", width: 220, height: 140, borderRadius: 11, overflow: "hidden", border: "1px solid #ece6dc", margin: "0 0 11px" }}>
-                          <div style={{ position: "absolute", inset: 0, background: PLACEHOLDER_BG }} />
-                          <span style={{ position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", fontFamily: "ui-monospace,monospace", fontSize: 10, letterSpacing: "0.08em", color: "#a89c88", textTransform: "uppercase" }}>photo</span>
-                        </div>
-                      )}
-                      <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-                        <button onClick={() => toggleCommentLike(cKey, c.likes)} className="sy-comment-like" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 13, fontWeight: 600, color: commentLiked.has(cKey) ? "#d4703f" : "#8a8378", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
-                          <span style={{ fontSize: 15 }}>{commentLiked.has(cKey) ? "♥" : "♡"}</span> {commentLikes[cKey] ?? c.likes}
-                        </button>
-                        <button onClick={() => setReplyingTo(replyingTo === ci ? null : ci)} className="sy-comment-reply" style={{ background: "none", border: "none", fontSize: 13, fontWeight: 600, color: "#8a8378", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Reply</button>
-                      </div>
-                      {replyingTo === ci && (
-                        <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-                          <textarea placeholder={`Reply to ${c.name}…`} value={replyTexts[ci] || ""} onChange={(e) => setReplyTexts((r) => ({ ...r, [ci]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) postReply(ci); }} rows={2} autoFocus
-                            style={{ flex: 1, border: "1px solid #e2dccf", borderRadius: 10, background: "#fff", padding: "10px 12px", fontSize: 13.5, fontFamily: "inherit", color: "#221f1b", resize: "none", outline: "none", lineHeight: 1.5 }} />
-                          <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                            <button onClick={() => postReply(ci)} className="sy-post-comment-btn" style={{ background: "#0f6f67", color: "#fff", border: "none", borderRadius: 9, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Reply</button>
-                            <button onClick={() => setReplyingTo(null)} style={{ background: "none", border: "1px solid #e2dccf", borderRadius: 9, padding: "7px 14px", fontSize: 13, fontWeight: 600, color: "#8a8378", cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  {c.replies.map((r) => {
-                    const rKey = `r${c.id}-${r.id}`;
-                    return (
-                      <div key={r.id} style={{ display: "flex", gap: 12, margin: "18px 0 0 30px", paddingLeft: 20, borderLeft: "2px solid #ece6dc" }}>
-                        <span style={{ flexShrink: 0, width: 34, height: 34, borderRadius: 999, background: r.color, color: r.color === "#ddd6c8" ? "#7a7264" : "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 }}>{r.initials}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 5 }}>
-                            <span style={{ fontSize: 13.5, fontWeight: 700, color: "#221f1b" }}>{r.name}</span>
-                            {r.isAuthor && <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#0b544e", background: "#e0ece9", padding: "2px 8px", borderRadius: 999 }}>Author</span>}
-                            <span style={{ fontSize: 12.5, color: "#a8a195" }}>{r.time}</span>
-                          </div>
-                          <p style={{ fontSize: 14, lineHeight: 1.6, color: "#3a362f", margin: "0 0 9px" }}>{r.text}</p>
-                          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-                            <button onClick={() => toggleCommentLike(rKey, r.likes)} className="sy-comment-like" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", fontSize: 12.5, fontWeight: 600, color: commentLiked.has(rKey) ? "#d4703f" : "#8a8378", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
-                              <span style={{ fontSize: 14 }}>{commentLiked.has(rKey) ? "♥" : "♡"}</span> {commentLikes[rKey] ?? r.likes}
-                            </button>
-                            <button onClick={() => setReplyingTo(ci)} className="sy-comment-reply" style={{ background: "none", border: "none", fontSize: 12.5, fontWeight: 600, color: "#8a8378", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>Reply</button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -1622,7 +1372,7 @@ function sanitizeStoryHtml(html: string): string {
   return tmp.innerHTML;
 }
 
-function FormView({ onBack, onPublish, user, initialData, uniCounts }: { onBack: () => void; onPublish: (story: Story, editedId?: string) => void; user: { id: string; email?: string; user_metadata?: Record<string, string> } | null; initialData?: EditableStory; uniCounts: Record<string, number> }) {
+function FormView({ onBack, onPublish, user, initialData, uniCounts, cityCounts }: { onBack: () => void; onPublish: (story: Story, editedId?: string) => void; user: { id: string; email?: string; user_metadata?: Record<string, string> } | null; initialData?: EditableStory; uniCounts: Record<string, number>; cityCounts: Record<string, number> }) {
   const isEdit = !!initialData?.id;
   const [anon, setAnon] = useState(initialData?.anon ?? true);
   const [title, setTitle] = useState(initialData?.title ?? "");
@@ -1718,21 +1468,20 @@ function FormView({ onBack, onPublish, user, initialData, uniCounts }: { onBack:
       category: selectedCategory || "",
       daysAgo: 0,
     };
-    if (user) {
-      if (isEdit && initialData?.id) {
-        await supabase.from("stories").update({
+    if (!user) { setToast("Please sign in to share your story."); return; }
+    const { error } = isEdit && initialData?.id
+      ? await supabase.from("stories").update({
           title: title.trim(), excerpt, body_html: bodyHtml,
           category: selectedCategory || null, city: selectedCity || null,
           uni: selectedUni || null, anon, read_time: readTime, display_name: displayName,
-        }).eq("id", initialData.id);
-      } else {
-        await supabase.from("stories").insert({
+        }).eq("id", initialData.id)
+      : await supabase.from("stories").insert({
           user_id: user.id, title: title.trim(), excerpt, body_html: bodyHtml,
           category: selectedCategory || null, city: selectedCity || null,
           uni: selectedUni || null, anon, read_time: readTime, display_name: displayName,
         });
-      }
-    }
+    // Only report success once the story is actually saved.
+    if (error) { setToast("Couldn't save your story. Please try again."); return; }
     setToast(isEdit ? "Story updated!" : "Story published!");
     setTimeout(() => onPublish(story, isEdit ? initialData?.id : undefined), 1400);
   };
@@ -1834,7 +1583,9 @@ function FormView({ onBack, onPublish, user, initialData, uniCounts }: { onBack:
               {citySuggestions.map((c, i) => (
                 <button key={c.name} className="sy-list-row" onClick={() => { setSelectedCity(c.name); setCityQuery(c.name); setShowCityDrop(false); }} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 15px", background: i === 0 ? "#fafaf7" : "#fff", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
                   <span style={{ fontSize: 14, color: "#221f1b" }}>{highlight(c.name, cityQuery)}</span>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 8px", borderRadius: 999 }}>{c.n}</span>
+                  {(cityCounts[c.name] ?? 0) > 0 && (
+                    <span style={{ fontSize: 11.5, fontWeight: 600, color: "#0b544e", background: "#e9f0ee", padding: "1px 8px", borderRadius: 999 }}>{cityCounts[c.name]}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -1871,13 +1622,8 @@ export default function StoriesClient() {
   const [toast, setToast] = useState("");
   const [stories, setStories] = useState<Story[]>(EMPTY_STORIES);
   const [storiesLoading, setStoriesLoading] = useState(true);
-  const uniCounts = useMemo<Record<string, number>>(() => {
-    const map: Record<string, number> = {};
-    for (const s of stories) {
-      if (s.uni) map[s.uni] = (map[s.uni] || 0) + 1;
-    }
-    return map;
-  }, [stories]);
+  const uniCounts = useMemo(() => countBy(stories, "uni"), [stories]);
+  const cityCounts = useMemo(() => countBy(stories, "city"), [stories]);
   const [upvoteCounts, setUpvoteCounts] = useState<number[]>([]);
   const [votedIds, setVotedIds] = useState<Set<string>>(new Set());
   const [nudgeVisible, setNudgeVisible] = useState(false);
@@ -1961,7 +1707,6 @@ export default function StoriesClient() {
           {view === "feed" && (
             <FeedView
               onShareStory={openForm}
-              onOpenStory={() => setView("story")}
               onMyStories={() => setView("mystories")}
               upvoteCounts={upvoteCounts}
               votedIds={votedIds}
@@ -1971,7 +1716,6 @@ export default function StoriesClient() {
               user={user}
             />
           )}
-          {view === "story" && <StoryView onBack={() => setView("feed")} onShareStory={openForm} />}
           {view === "mystories" && (
             <MyStoriesView
               user={user}
@@ -1984,6 +1728,7 @@ export default function StoriesClient() {
               onBack={() => editStory ? setView("mystories") : setView("feed")}
               user={user}
               uniCounts={uniCounts}
+              cityCounts={cityCounts}
               initialData={editStory ?? undefined}
               onPublish={(story, editedId) => {
                 if (editedId) {
