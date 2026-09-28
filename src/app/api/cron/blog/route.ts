@@ -90,20 +90,22 @@ function slugify(text: string) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
 }
 
-async function getUsedSlugs(): Promise<string[]> {
+// Throws instead of returning an empty list: picking topics without knowing what exists
+// just produces a duplicate slug that the unique constraint rejects.
+async function getPublishedArticles(): Promise<{ slugs: Set<string>; titles: string[] }> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return [];
-  try {
-    const res = await fetch(`${url}/rest/v1/articles?select=slug`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
-    });
-    if (!res.ok) return [];
-    const rows = await res.json();
-    return Array.isArray(rows) ? rows.map((r: any) => r.slug) : [];
-  } catch {
-    return [];
-  }
+  if (!url || !key) throw new Error("Missing Supabase config");
+  const res = await fetch(`${url}/rest/v1/articles?select=slug,title&limit=10000`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Could not load published articles (${res.status})`);
+  const rows: { slug?: string; title?: string }[] = await res.json();
+  return {
+    slugs: new Set(rows.map((r) => r.slug || "").filter(Boolean)),
+    titles: rows.map((r) => r.title || "").filter(Boolean),
+  };
 }
 
 async function fetchImage(keywords: string): Promise<string> {
@@ -273,32 +275,37 @@ async function publishToSupabase(article: Record<string, unknown>): Promise<bool
     body: JSON.stringify(article),
   });
 
-  return res.status === 200 || res.status === 201;
+  if (res.status === 200 || res.status === 201) return true;
+  const detail = await res.text().catch(() => "");
+  throw new Error(`Supabase insert failed (${res.status}): ${detail.slice(0, 200)}`);
 }
 
 export const maxDuration = 60;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // Fail closed: an unset secret must not leave paid article generation open to anyone.
+  if (!cronSecret || request.headers.get("authorization") !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const usedSlugs = await getUsedSlugs();
-    const available = TOPICS.filter((t) => !usedSlugs.includes(slugify(t.title)));
+    const published = await getPublishedArticles();
+    const available = TOPICS.filter((t) => !published.slugs.has(slugify(t.title)));
 
-    let topic: { title: string; category: string; keywords: string };
+    let topic: { title: string; category: string; keywords: string } | null = null;
     if (available.length > 0) {
       // Pick randomly from remaining predefined topics
       topic = available[Math.floor(Math.random() * available.length)];
     } else {
-      // All predefined topics used — ask Claude to invent a fresh one
-      const usedTitles = TOPICS.map((t) => t.title);
-      topic = await generateTopic(usedTitles);
+      // All predefined topics used — ask Claude for a fresh one. It must see every published
+      // title (including earlier generated ones), and a title that still collides is retried.
+      for (let attempt = 0; attempt < 3 && !topic; attempt++) {
+        const candidate = await generateTopic(published.titles);
+        if (!published.slugs.has(slugify(candidate.title))) topic = candidate;
+        else published.titles.push(candidate.title);
+      }
+      if (!topic) throw new Error("Could not find an unused topic after 3 attempts");
     }
 
     const slug = slugify(topic.title);
@@ -306,7 +313,7 @@ export async function GET(request: Request) {
     const article = await writeArticle(topic);
     const imageUrl = await fetchImage(topic.keywords);
 
-    const published = await publishToSupabase({
+    const saved = await publishToSupabase({
       title: topic.title,
       slug,
       excerpt: article.excerpt,
@@ -317,7 +324,7 @@ export async function GET(request: Request) {
       published_at: new Date().toISOString(),
     });
 
-    if (!published) return NextResponse.json({ error: "Failed to publish to Supabase" }, { status: 500 });
+    if (!saved) return NextResponse.json({ error: "Failed to publish to Supabase" }, { status: 500 });
 
     return NextResponse.json({ ok: true, slug, title: topic.title });
   } catch (err: any) {

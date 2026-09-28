@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { notFound } from "next/navigation";
 import StoryPageClient from "./StoryPageClient";
+import { sanitizeStoryHtml } from "@/lib/sanitize-story";
 
 type StoryRow = {
   id: string; title: string; excerpt: string | null; body_html: string | null;
   category: string | null; city: string | null; uni: string | null;
   anon: boolean; display_name: string | null; upvotes: number;
-  comments: number; read_time: number; created_at: string; user_id: string;
+  comments: number; read_time: number; created_at: string;
 };
+
+// user_id is left out so anonymous stories can't be traced back to an account.
+const PUBLIC_STORY_COLUMNS = "id,title,excerpt,body_html,category,city,uni,anon,display_name,upvotes,comments,read_time,created_at";
 
 async function getStory(id: string): Promise<StoryRow | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -16,8 +20,10 @@ async function getStory(id: string): Promise<StoryRow | null> {
   if (!url || !key) return null;
   try {
     const db = createClient(url, key);
-    const { data } = await db.from("stories").select("*").eq("id", id).single();
-    return (data as StoryRow) ?? null;
+    const { data } = await db.from("stories").select(PUBLIC_STORY_COLUMNS).eq("id", id).single();
+    if (!data) return null;
+    const story = data as StoryRow;
+    return { ...story, body_html: sanitizeStoryHtml(story.body_html) };
   } catch { return null; }
 }
 

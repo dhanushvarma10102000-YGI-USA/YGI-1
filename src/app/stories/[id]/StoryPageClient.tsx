@@ -9,29 +9,12 @@ type StoryRow = {
   id: string; title: string; excerpt: string | null; body_html: string | null;
   category: string | null; city: string | null; uni: string | null;
   anon: boolean; display_name: string | null; upvotes: number;
-  comments: number; read_time: number; created_at: string; user_id: string;
+  comments: number; read_time: number; created_at: string;
 };
 
 function timeAgo(iso: string) {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
   return days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days} days ago`;
-}
-
-function sanitizeHtml(html: string): string {
-  if (typeof document === "undefined") return html;
-  const tmp = document.createElement("div");
-  tmp.innerHTML = html;
-  tmp.querySelectorAll("script,style,iframe,object,embed,form").forEach((el) => el.remove());
-  tmp.querySelectorAll("*").forEach((el) => {
-    Array.from(el.attributes).forEach((attr) => {
-      const name = attr.name.toLowerCase();
-      const val = attr.value.trim().toLowerCase();
-      if (name.startsWith("on") || /^(javascript|data|vbscript):/.test(val)) {
-        el.removeAttribute(attr.name);
-      }
-    });
-  });
-  return tmp.innerHTML;
 }
 
 export default function StoryPageClient({ story }: { story: StoryRow }) {
@@ -160,7 +143,8 @@ export default function StoryPageClient({ story }: { story: StoryRow }) {
 
             {/* Body */}
             {story.body_html ? (
-              <div className="sp-body" style={{ fontSize: 16, color: "#3a362f", lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: sanitizeHtml(story.body_html) }} />
+              // body_html is sanitized on the server in page.tsx before it reaches this component.
+              <div className="sp-body" style={{ fontSize: 16, color: "#3a362f", lineHeight: 1.8 }} dangerouslySetInnerHTML={{ __html: story.body_html }} />
             ) : story.excerpt ? (
               <p style={{ fontSize: 16, color: "#3a362f", lineHeight: 1.8 }}>{story.excerpt}</p>
             ) : (

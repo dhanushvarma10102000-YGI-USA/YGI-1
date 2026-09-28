@@ -44,6 +44,14 @@ async function countRows(table: string) {
   return total && total !== "*" ? Number(total) : 0;
 }
 
+// articles.read_time is text ("7 min read") — the blog prints it as-is, same as the cron writes it.
+function formatReadTime(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (/min/i.test(text)) return text;
+  const minutes = Math.max(1, Math.round(Number(text)) || 1);
+  return `${minutes} min read`;
+}
+
 export async function GET(request: Request) {
   const auth = await requireAdminDashboard(request);
   if (!auth.ok) return auth.response;
@@ -112,7 +120,7 @@ export async function POST(request: Request) {
       excerpt: String(body?.excerpt || "").slice(0, 220),
       content,
       slug,
-      read_time: Number(body?.read_time) || 1,
+      read_time: formatReadTime(body?.read_time),
       ...(body?.image_url ? { image_url: String(body.image_url) } : {}),
     }),
   });

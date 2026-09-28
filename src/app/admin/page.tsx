@@ -142,12 +142,21 @@ interface AdminChannelMessage {
   media_url?: string | null;
   created_at?: string;
 }
+interface AdminCommunityUser {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  avatar_url?: string | null;
+  created_at?: string | null;
+  last_sign_in_at?: string | null;
+}
 interface AdminCommunityData {
   groups: AdminCommunityGroup[];
   members: AdminCommunityMember[];
   messages: AdminCommunityMessage[];
   moderators: AdminCommunityModerator[];
   channelMessages: AdminChannelMessage[];
+  users: AdminCommunityUser[];
 }
 interface AdminSessionUser {
   id: string;
@@ -400,6 +409,7 @@ const GLOBAL_CSS = `
 .ygc-pulse{ animation:ygcpulse 1.8s ease-in-out infinite; }
 @keyframes ygcpulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
 .ygc-fade{ animation:ygcfade .4s ease both; }
+.ygc-row-btn:hover{ background:var(--card-2)!important; }
 @keyframes ygcfade{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
 .ygc-shimmer{ background:linear-gradient(90deg,rgba(148,163,184,0.12) 25%,rgba(148,163,184,0.22) 37%,rgba(148,163,184,0.12) 63%); background-size:400% 100%; animation:ygcshimmer 1.4s ease infinite; }
 @keyframes ygcshimmer{ 0%{ background-position:100% 0; } 100%{ background-position:-100% 0; } }
@@ -1734,6 +1744,7 @@ const EMPTY_COMMUNITY_DATA: AdminCommunityData = {
   messages: [],
   moderators: [],
   channelMessages: [],
+  users: [],
 };
 
 function cleanEmail(value: string) {
@@ -1803,6 +1814,194 @@ function ChannelBadge({ channel }: { channel: string }) {
   );
 }
 
+function timeAgo(value?: string | null) {
+  if (!value) return "—";
+  const ms = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(ms)) return "—";
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return fmtDate(value);
+}
+
+function MemberProfileDialog({ userId, data, onClose }: { userId: string | null; data: AdminCommunityData; onClose: () => void }) {
+  useEffect(() => {
+    if (!userId) return;
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [userId, onClose]);
+
+  if (!userId) return null;
+  const account = data.users.find((u) => u.id === userId);
+  const memberships = data.members
+    .filter((m) => m.user_id === userId)
+    .sort((a, b) => new Date(b.joined_at || 0).getTime() - new Date(a.joined_at || 0).getTime());
+  const name = memberships[0]?.display_name || account?.name || account?.email || "Member";
+  const avatar = memberships[0]?.avatar_url || account?.avatar_url || null;
+  const messageCount = data.messages.filter((m) => m.author_id === userId).length;
+  const groupName = (id: string) => data.groups.find((g) => g.id === id)?.name || id;
+
+  const stat = (label: string, value: string) => (
+    <div style={{ background: "var(--card-2)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 12px", minWidth: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 750, color: "var(--text)", marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+    </div>
+  );
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 960, background: "rgba(15,23,42,0.34)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${name} profile`}
+        onClick={(e) => e.stopPropagation()}
+        className="ygc-fade"
+        style={{ width: 440, maxWidth: "100%", maxHeight: "calc(100vh - 32px)", overflowY: "auto", background: "var(--bg-2)", border: "1px solid var(--border-2)", borderRadius: 16, padding: 22, boxShadow: "0 28px 80px -28px rgba(15,23,42,0.38)" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatar} alt="" referrerPolicy="no-referrer" style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "2px solid var(--border)", flexShrink: 0 }} />
+          ) : (
+            <MemberAvatar name={name} />
+          )}
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</div>
+            {account?.email ? (
+              <a href={`mailto:${account.email}`} style={{ fontSize: 13, color: "var(--accent)", textDecoration: "none", wordBreak: "break-all" }}>{account.email}</a>
+            ) : (
+              <div style={{ fontSize: 12.5, color: "var(--muted)" }}>Account no longer exists</div>
+            )}
+          </div>
+          <IconBtn name="close" title="Close" onClick={onClose} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginTop: 18 }}>
+          {stat("Signed up", account?.created_at ? fmtDate(account.created_at) : "—")}
+          {stat("Last sign-in", timeAgo(account?.last_sign_in_at))}
+          {stat("Groups", String(memberships.length))}
+          {stat("Recent messages", String(messageCount))}
+        </div>
+
+        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.5, margin: "20px 0 8px" }}>Joined groups</div>
+        {memberships.length === 0 && <div style={{ fontSize: 13, color: "var(--muted)" }}>Not in any group right now.</div>}
+        <div style={{ display: "grid", gap: 6 }}>
+          {memberships.map((m) => (
+            <div key={m.group_id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", border: "1px solid var(--border)", borderRadius: 10 }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 750, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{groupName(m.group_id)}</div>
+                <div style={{ fontSize: 12, color: "var(--muted)" }}>Joined {fmtTime(m.joined_at)}</div>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 750, padding: "2px 7px", borderRadius: 5, background: m.role === "admin" ? "rgba(99,102,241,0.12)" : "var(--card-2)", color: m.role === "admin" ? "var(--accent)" : "var(--muted)", border: "1px solid var(--border)" }}>
+                {m.role === "admin" ? "Admin" : "Member"}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const MEMBERS_SEEN_KEY = "ygiu_admin_members_seen_at";
+
+// Slide-in panel shown when the dashboard opens, listing who joined a community group since the last visit.
+function NewMembersPopup() {
+  const [data, setData] = useState<AdminCommunityData>(EMPTY_COMMUNITY_DATA);
+  const [joins, setJoins] = useState<AdminCommunityMember[]>([]);
+  const [firstVisit, setFirstVisit] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  // Newest join time in the loaded data; "seen" marks up to here so later joins still show next time.
+  const [seenUpTo, setSeenUpTo] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchAdminCommunity()
+      .then((next) => {
+        if (cancelled) return;
+        const members = Array.isArray(next.members) ? next.members : [];
+        setData({ ...EMPTY_COMMUNITY_DATA, ...next, members, users: Array.isArray(next.users) ? next.users : [] });
+        let seenAt: number | null = null;
+        try {
+          const raw = localStorage.getItem(MEMBERS_SEEN_KEY);
+          seenAt = raw ? Number(raw) : null;
+        } catch {}
+        const newest = [...members].sort((a, b) => new Date(b.joined_at || 0).getTime() - new Date(a.joined_at || 0).getTime());
+        const list = seenAt ? newest.filter((m) => new Date(m.joined_at || 0).getTime() > seenAt!) : newest.slice(0, 10);
+        setFirstVisit(!seenAt);
+        setSeenUpTo(Math.max(seenAt || 0, new Date(newest[0]?.joined_at || 0).getTime() || 0));
+        setJoins(list);
+        setOpen(list.length > 0);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  const closeProfile = useCallback(() => setProfileUserId(null), []);
+
+  function dismiss() {
+    try {
+      if (seenUpTo) localStorage.setItem(MEMBERS_SEEN_KEY, String(seenUpTo));
+    } catch {}
+    setOpen(false);
+  }
+
+  const groupName = (id: string) => data.groups.find((g) => g.id === id)?.name || id;
+
+  return (
+    <>
+      {open && (
+        <aside
+          className="ygc-fade"
+          aria-label="New community members"
+          style={{ position: "fixed", top: 20, right: 20, zIndex: 950, width: 340, maxWidth: "calc(100vw - 32px)", maxHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column", background: "var(--bg-2)", border: "1px solid var(--border-2)", borderRadius: 16, boxShadow: "0 28px 70px -28px rgba(15,23,42,0.42)" }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 14px 12px 16px", borderBottom: "1px solid var(--border)" }}>
+            <span style={{ width: 32, height: 32, borderRadius: 9, background: "rgba(139,92,246,0.14)", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Icon name="users" size={16} />
+            </span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={{ fontSize: 14.5, fontWeight: 800, color: "var(--text)" }}>{firstVisit ? "Recent joins" : `${joins.length} new ${joins.length === 1 ? "member" : "members"}`}</div>
+              <div style={{ fontSize: 12, color: "var(--muted)" }}>{firstVisit ? "Latest people to join a group" : "Joined since your last visit"}</div>
+            </div>
+            <IconBtn name="close" title="Close" onClick={dismiss} size={15} />
+          </div>
+          <div style={{ overflowY: "auto", padding: 6 }}>
+            {joins.map((m) => (
+              <button
+                key={`${m.group_id}:${m.user_id}`}
+                type="button"
+                onClick={() => setProfileUserId(m.user_id)}
+                className="ygc-row-btn"
+                style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 10px", border: "none", borderRadius: 10, background: "transparent", cursor: "pointer", textAlign: "left", font: "inherit" }}
+              >
+                <MemberAvatar name={memberName(m)} isAdmin={m.role === "admin"} />
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ display: "block", fontSize: 13.5, fontWeight: 750, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{memberName(m)}</span>
+                  <span style={{ display: "block", fontSize: 12, color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Joined {groupName(m.group_id)}</span>
+                </span>
+                <span style={{ fontSize: 11.5, color: "var(--muted)", flexShrink: 0 }}>{timeAgo(m.joined_at)}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ padding: 10, borderTop: "1px solid var(--border)" }}>
+            <Btn variant="ghost" size="sm" onClick={dismiss} style={{ width: "100%", justifyContent: "center" }}>
+              <Icon name="check" size={13} /> Mark as seen
+            </Btn>
+          </div>
+        </aside>
+      )}
+      <MemberProfileDialog userId={profileUserId} data={data} onClose={closeProfile} />
+    </>
+  );
+}
+
 function CommunityTab({ store }: { store: Store }) {
   const { counts, loading, push } = store;
   const [data, setData] = useState<AdminCommunityData>(EMPTY_COMMUNITY_DATA);
@@ -1819,6 +2018,8 @@ function CommunityTab({ store }: { store: Store }) {
   const [editingChannelMsgId, setEditingChannelMsgId] = useState<string | null>(null);
   const [editingChannelDraft, setEditingChannelDraft] = useState("");
   const [confirmDeleteGroup, setConfirmDeleteGroup] = useState<AdminCommunityGroup | null>(null);
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const closeProfile = useCallback(() => setProfileUserId(null), []);
 
   const loadCommunity = useCallback(async () => {
     setCommunityLoading(true);
@@ -1830,6 +2031,7 @@ function CommunityTab({ store }: { store: Store }) {
         messages: Array.isArray(nextData.messages) ? nextData.messages : [],
         moderators: Array.isArray(nextData.moderators) ? nextData.moderators : [],
         channelMessages: Array.isArray(nextData.channelMessages) ? nextData.channelMessages : [],
+        users: Array.isArray(nextData.users) ? nextData.users : [],
       });
     } catch (error: any) {
       push(error?.message || "Could not load community admin data", "error");
@@ -1963,6 +2165,7 @@ function CommunityTab({ store }: { store: Store }) {
         onConfirm={() => confirmDeleteGroup && deleteGroup(confirmDeleteGroup)}
         onCancel={() => setConfirmDeleteGroup(null)}
       />
+      <MemberProfileDialog userId={profileUserId} data={data} onClose={closeProfile} />
       <PageHeader
         title="Community"
         subtitle="Broadcast to official channels, manage groups, members and moderator access."
@@ -2243,7 +2446,7 @@ function CommunityTab({ store }: { store: Store }) {
                           <div key={`${member.group_id}:${member.user_id}`} style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: 10 }}>
                             <MemberAvatar name={memberName(member)} isAdmin={isAdmin} />
                             <div style={{ minWidth: 0, flex: 1 }}>
-                              <div style={{ fontSize: 13.5, fontWeight: 750, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{memberName(member)}</div>
+                              <button type="button" onClick={() => setProfileUserId(member.user_id)} title="View profile" style={{ display: "block", maxWidth: "100%", padding: 0, border: "none", background: "none", cursor: "pointer", font: "inherit", textAlign: "left", fontSize: 13.5, fontWeight: 750, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{memberName(member)}</button>
                               <span style={{
                                 display: "inline-block", marginTop: 3,
                                 fontSize: 11, fontWeight: 750, padding: "2px 7px", borderRadius: 5,
@@ -2942,7 +3145,7 @@ export default function AdminPage() {
       if (!loginEmail) { setLoginError("Enter your email first."); return; }
       setLoginLoading(true); setLoginError("");
       const { error } = await supabase.auth.resetPasswordForEmail(loginEmail, {
-        redirectTo: `${window.location.origin}/admin`,
+        redirectTo: `${window.location.origin}/reset-password?next=/admin`,
       });
       setLoginLoading(false);
       if (error) setLoginError(error.message);
@@ -3172,6 +3375,7 @@ export default function AdminPage() {
           onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}
         />
+        <NewMembersPopup />
         {toastNode}
       </div>
     </div>

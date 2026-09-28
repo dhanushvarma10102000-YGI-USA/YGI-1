@@ -6,7 +6,7 @@ import { AnimatedGradientBg, GlassCard } from "@/components/ds/AnimatedGradient"
 import { getArticle, getRelatedArticles } from "@/lib/articles";
 import type { Article } from "@/lib/articles";
 import ShareActions from "./ShareActions";
-import { absoluteUrl, buildArticleJsonLd, buildBreadcrumbJsonLd, buildFaqJsonLd, extractFaqItems } from "@/lib/seo";
+import { absoluteUrl, buildArticleJsonLd, buildBreadcrumbJsonLd, buildFaqJsonLd, extractFaqItems, jsonLdHtml } from "@/lib/seo";
 
 const CAT_COLORS: Record<string, string> = {
   "Insurance": "#8b5cf6",
@@ -99,7 +99,7 @@ export default async function ArticlePage({ params }: Props) {
   return (
     <div className="min-h-screen overflow-x-hidden bg-[#e9e8e4] font-[Inter,sans-serif]">
       {jsonLdScripts.map((ld, i) => (
-        <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ld) }} />
+        <script key={i} type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(ld) }} />
       ))}
       <div className="absolute inset-x-0 top-0 overflow-hidden rounded-b-[48px]" style={{ height: "280px" }}>
         <AnimatedGradientBg rounded="rounded-b-[48px]" />

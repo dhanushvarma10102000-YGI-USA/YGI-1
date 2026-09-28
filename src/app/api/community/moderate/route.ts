@@ -50,6 +50,18 @@ export async function POST(request: Request) {
   const admin = createClient(SUPABASE_URL, SERVICE_KEY);
 
   try {
+    if (action === "list_members") {
+      const groupId = String(body?.group_id || "").trim();
+      if (!groupId) return json({ error: "group_id is required." }, 400);
+      const { data, error } = await admin
+        .from("community_memberships")
+        .select("user_id,display_name,avatar_url,role,joined_at")
+        .eq("group_id", groupId)
+        .order("joined_at", { ascending: true });
+      if (error) throw error;
+      return json({ members: data || [] });
+    }
+
     if (action === "set_role") {
       const groupId = String(body?.group_id || "").trim();
       const targetUserId = String(body?.user_id || "").trim();

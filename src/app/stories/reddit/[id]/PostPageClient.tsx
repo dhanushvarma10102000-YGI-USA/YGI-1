@@ -5,12 +5,15 @@ import { Nav } from "@/components/ds/Nav";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 
+// user_id is hidden from the public so anonymous comments can't be traced to an account.
+const PUBLIC_COMMENT_COLUMNS = "id,post_id,body,anon,display_name,created_at";
+
 type Post = {
   id: string; title: string; selftext: string;
   subreddit: string; author: string; permalink: string; created_utc: number;
 };
 type Comment = {
-  id: string; post_id: string; user_id: string; body: string;
+  id: string; post_id: string; body: string;
   anon: boolean; display_name: string | null; created_at: string;
 };
 
@@ -63,7 +66,7 @@ export default function PostPageClient({ id, serverPost }: { id: string; serverP
   }, [id, post]);
 
   useEffect(() => {
-    supabase.from("reddit_post_comments").select("*").eq("post_id", id)
+    supabase.from("reddit_post_comments").select(PUBLIC_COMMENT_COLUMNS).eq("post_id", id)
       .order("created_at", { ascending: true })
       .then(({ data }) => setComments(data ?? []));
   }, [id]);
@@ -79,7 +82,7 @@ export default function PostPageClient({ id, serverPost }: { id: string; serverP
       setCommentBody("");
       setToast("Comment posted!");
       setTimeout(() => setToast(""), 2500);
-      const { data } = await supabase.from("reddit_post_comments").select("*").eq("post_id", id).order("created_at", { ascending: true });
+      const { data } = await supabase.from("reddit_post_comments").select(PUBLIC_COMMENT_COLUMNS).eq("post_id", id).order("created_at", { ascending: true });
       setComments(data ?? []);
     }
     setSubmitting(false);

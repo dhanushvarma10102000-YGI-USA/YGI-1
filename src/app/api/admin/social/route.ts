@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/admin-auth";
+import { requireAdminDashboard } from "@/lib/admin-auth";
 
 const DISTRIBUTOR_URL = process.env.SOCIAL_DISTRIBUTOR_URL || "http://localhost:4000";
 
@@ -14,7 +14,7 @@ async function proxyPost(path: string, body: unknown) {
 }
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAdmin(req);
+  const auth = await requireAdminDashboard(req);
   if (!auth.ok) return auth.response;
 
   try {
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin(req);
+  const auth = await requireAdminDashboard(req);
   if (!auth.ok) return auth.response;
 
   try {

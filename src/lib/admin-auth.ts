@@ -66,26 +66,6 @@ async function getSupabaseUser(token: string): Promise<AdminUser | null> {
   return { id: String(user.id), email };
 }
 
-async function isSavedModerator(email: string) {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !email) return false;
-
-  const response = await fetch(
-    `${SUPABASE_URL}/rest/v1/community_moderators?select=email&email=eq.${encodeURIComponent(email)}&enabled=eq.true&limit=1`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      cache: "no-store",
-    }
-  );
-
-  if (!response.ok) return false;
-
-  const rows = await response.json().catch(() => []);
-  return Array.isArray(rows) && rows.length > 0;
-}
-
 export async function requireAdmin(request: Request): Promise<AdminAuthResult> {
   if (!SUPABASE_URL || (!SUPABASE_ANON_KEY && !SUPABASE_SERVICE_ROLE_KEY)) {
     return {
@@ -110,8 +90,10 @@ export async function requireAdmin(request: Request): Promise<AdminAuthResult> {
     };
   }
 
-  const adminEmails = configuredAdminEmails();
-  if (adminEmails.has(user.email) || (await isSavedModerator(user.email))) {
+  // Only emails configured in the environment get the admin dashboard. Moderators saved in the
+  // community_moderators table are community-only: moderators can add other moderators there,
+  // so letting that table grant admin access would let access spread without an env change.
+  if (configuredAdminEmails().has(user.email)) {
     return { ok: true, user };
   }
 

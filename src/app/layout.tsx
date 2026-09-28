@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
-import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SEO_KEYWORDS, SITE_NAME, SITE_URL, absoluteUrl } from "@/lib/seo";
+import { DEFAULT_DESCRIPTION, DEFAULT_TITLE, SEO_KEYWORDS, SITE_NAME, SITE_URL, absoluteUrl, jsonLdHtml } from "@/lib/seo";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -104,7 +104,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ margin: 0, padding: 0 }}>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }}
         />
         {children}
         {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (

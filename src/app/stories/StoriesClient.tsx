@@ -4,6 +4,9 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Nav } from "@/components/ds/Nav";
 import { supabase } from "@/lib/supabase";
 
+// Every column except user_id, which is hidden so anonymous stories can't be traced to an account.
+const PUBLIC_STORY_COLUMNS = "id,title,excerpt,body_html,category,city,uni,anon,display_name,upvotes,comments,read_time,created_at";
+
 type View = "feed" | "story" | "form" | "mystories";
 type RedditPost = {
   id: string;
@@ -1517,7 +1520,8 @@ function MyStoriesView({ user, onBack, onEdit }: {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("stories").select("*").eq("user_id", user.id).order("created_at", { ascending: false })
+    // Reading user_id is blocked for the public, so the owner's list comes from a SECURITY DEFINER function.
+    supabase.rpc("my_stories")
       .then(({ data }) => { setMyStories((data ?? []) as EditableStory[]); setLoading(false); });
   }, [user]);
 
@@ -1892,7 +1896,7 @@ export default function StoriesClient() {
     setStoriesLoading(true);
     try {
       const [storiesRes, sessionRes] = await Promise.all([
-        supabase.from("stories").select("*").order("created_at", { ascending: false }).limit(100),
+        supabase.from("stories").select(PUBLIC_STORY_COLUMNS).order("created_at", { ascending: false }).limit(100),
         supabase.auth.getSession(),
       ]);
       if (!storiesRes.error && storiesRes.data) {

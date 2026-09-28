@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Footer } from "@/components/ds/Footer";
 import { Nav } from "@/components/ds/Nav";
-import { absoluteUrl, SITE_NAME } from "@/lib/seo";
+import { absoluteUrl, SITE_NAME, jsonLdHtml } from "@/lib/seo";
 import type { CommunityGroup } from "@/lib/community-groups";
 import { getCommunityGroupById, getCommunityGroups } from "@/lib/community-directory";
 
@@ -80,7 +80,7 @@ export default async function CommunityGroupPage({ params }: Props) {
   return (
     <main className="min-h-screen bg-[#f6f8fb] font-[Inter,sans-serif] text-[#101828]">
       <Nav />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
       <section className="mx-auto grid max-w-6xl gap-8 px-5 pb-16 pt-28 md:grid-cols-[1fr_340px] lg:px-8">
         <div className="rounded-[22px] border border-[#dfe3eb] bg-white p-6 shadow-[0_24px_70px_-48px_rgba(15,23,42,.45)] sm:p-9">
           <div className="mb-6 flex flex-wrap items-center gap-3 text-sm font-black text-[#4f46e5]">

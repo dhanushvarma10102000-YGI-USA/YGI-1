@@ -795,6 +795,7 @@ export default function CommunityDesign({
   onSignOut,
   onExitGroup,
   isModerator = false,
+  membersVersion = 0,
   moderatorEmails = [],
   savedModeratorEmails = [],
   onModeratorEmailsChange,
@@ -810,6 +811,7 @@ export default function CommunityDesign({
   onSignOut?: () => void;
   onExitGroup?: (groupId: string) => void;
   isModerator?: boolean;
+  membersVersion?: number;
   moderatorEmails?: string[];
   savedModeratorEmails?: string[];
   onModeratorEmailsChange?: (emails: string[]) => void;
@@ -842,6 +844,7 @@ export default function CommunityDesign({
   const [memberActionBusy, setMemberActionBusy] = useState("");
   const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [groupMembersLoading, setGroupMembersLoading] = useState(false);
+  const membersRequestRef = useRef(0);
   const [userGroupRole, setUserGroupRole] = useState<"admin" | "member" | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const messageInputRef = useRef<HTMLInputElement | null>(null);
@@ -943,8 +946,8 @@ export default function CommunityDesign({
   const displayedMessages = normalizedSearch
     ? visibleMessagesForViewer.filter((message) => `${message.body} ${message.fileName || ""} ${message.imageName || ""}`.toLowerCase().includes(normalizedSearch))
     : visibleMessagesForViewer;
-  const headerMemberCount = Math.max(Number(selectedGroup?.memberCount || 0), 1);
-  const headerMembers = [{ name: userName, short: initials(userName), presence: "online" as Presence }, ...members].slice(0, Math.min(4, headerMemberCount));
+  const headerMemberCount = groupMembersLoading ? Number(selectedGroup?.memberCount || 0) : groupMembers.length;
+  const headerMembers = groupMembers.slice(0, 4).map((member) => ({ name: member.display_name || "Member", short: initials(member.display_name || "Member") }));
   const extraMemberCount = Math.max(0, headerMemberCount - headerMembers.length);
   const isTyping = Boolean(draftMessage.trim()) && !composerLocked;
 
@@ -1091,15 +1094,39 @@ export default function CommunityDesign({
   }
 
   async function fetchGroupMembers(groupId: string) {
+    // Replies can arrive out of order when switching groups quickly; only the latest request may update state.
+    const requestId = ++membersRequestRef.current;
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    if (requestId !== membersRequestRef.current) return;
     setGroupMembersLoading(true);
-    const { data } = await supabase
-      .from("community_memberships")
-      .select("user_id,display_name,avatar_url,role,joined_at")
-      .eq("group_id", groupId)
-      .order("joined_at", { ascending: true });
-    setGroupMembers(data || []);
-    setGroupMembersLoading(false);
+    try {
+      if (isModerator) {
+        // Moderators are usually not members, so RLS would hide the rows; read via the service-role API.
+        const response = await fetch("/api/community/moderate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ action: "list_members", group_id: groupId }),
+        });
+        const result = await response.json().catch(() => null);
+        if (requestId !== membersRequestRef.current) return;
+        setGroupMembers(response.ok ? result?.members || [] : []);
+      } else {
+        const { data } = await supabase
+          .from("community_memberships")
+          .select("user_id,display_name,avatar_url,role,joined_at")
+          .eq("group_id", groupId)
+          .order("joined_at", { ascending: true });
+        if (requestId !== membersRequestRef.current) return;
+        setGroupMembers(data || []);
+      }
+    } finally {
+      if (requestId === membersRequestRef.current) setGroupMembersLoading(false);
+    }
   }
+
+  useEffect(() => {
+    if (selectedGroupId && user?.id) fetchGroupMembers(selectedGroupId);
+  }, [selectedGroupId, user?.id, isModerator, membersVersion]);
 
   async function moderateSetRole(member: GroupMember, role: "member" | "admin") {
     if (!selectedGroupId) return;
@@ -1278,6 +1305,7 @@ export default function CommunityDesign({
         .gc-typing-dot:nth-child(3){animation-delay:.28s}
         .gc-sidebar{position:relative;transition:width .2s ease,flex-basis .2s ease,padding .2s ease}
         .gc-sidebar-body{min-height:0;display:flex;flex-direction:column;flex:1}
+        .gc-sidebar-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;margin:0 -12px;padding:0 12px}
         .gc-browse-home{width:100%;min-height:38px;border:1px solid ${theme.line};border-radius:10px;background:#fff;color:${theme.ink2};font:inherit;font-size:13.5px;font-weight:750;display:flex;align-items:center;gap:9px;padding:0 10px;cursor:pointer;margin-bottom:14px;transition:background .14s ease,color .14s ease,border-color .14s ease,box-shadow .14s ease}
         .gc-browse-home:hover{background:${theme.hover};color:${theme.ink};border-color:#dfe2f4;box-shadow:0 12px 26px -22px rgba(20,20,40,.5)}
         .gc-sidebar-toggle-shell{position:absolute;top:50%;right:-15px;z-index:110;width:30px;height:30px;display:flex;align-items:center;justify-content:center;transform:translateY(-50%)}
@@ -1379,6 +1407,7 @@ export default function CommunityDesign({
 
         {sidebarOpen && (
           <div className="gc-sidebar-body">
+            <div className="gc-sidebar-scroll">
             <button type="button" className="gc-browse-home" onClick={onBrowse}>
               <Globe2 size={16} />
               Community
@@ -1526,10 +1555,9 @@ export default function CommunityDesign({
                 </div>
               </div>
             )}
+            </div>
 
-            <div style={{ flex: 1 }} />
-
-            <div style={{ borderTop: `1px solid ${theme.line}`, marginTop: 10, paddingTop: 10, display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ borderTop: `1px solid ${theme.line}`, marginTop: 10, paddingTop: 10, display: "flex", alignItems: "center", gap: 10, flex: "0 0 auto" }}>
               <Avatar name={userName} size={34} presence="online" ring={theme.sidebar} bg="linear-gradient(150deg,#3fa85f,#7ee089)" />
               <span style={{ minWidth: 0, flex: 1 }}>
                 <span style={{ display: "block", fontSize: 13.5, fontWeight: 750, color: theme.ink, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{userName}</span>
@@ -1587,10 +1615,10 @@ export default function CommunityDesign({
 
           <div style={{ flex: 1 }} />
 
-          <div className="gc-header-actions" style={{ display: "flex", alignItems: "center", gap: 9, marginRight: 4 }}>
+          {selectedGroup && <div className="gc-header-actions" style={{ display: "flex", alignItems: "center", gap: 9, marginRight: 4 }}>
             <div style={{ display: "flex", alignItems: "center" }}>
               {headerMembers.map((member, index) => (
-                <span key={member.name} style={{ marginLeft: index ? -9 : 0, borderRadius: "50%", boxShadow: `0 0 0 2px ${theme.header}` }}>
+                <span key={`${member.name}-${index}`} style={{ marginLeft: index ? -9 : 0, borderRadius: "50%", boxShadow: `0 0 0 2px ${theme.header}` }}>
                   <Avatar name={member.name} short={member.short} size={28} ring={theme.header} />
                 </span>
               ))}
@@ -1603,20 +1631,17 @@ export default function CommunityDesign({
             {isModerator && selectedGroup ? (
               <button
                 onClick={() => {
-                  setMemberPanelOpen((v) => {
-                    if (!v) fetchGroupMembers(selectedGroup.id);
-                    return !v;
-                  });
+                  setMemberPanelOpen((v) => !v);
                 }}
                 style={{ background: memberPanelOpen ? theme.accentSoft : "transparent", border: memberPanelOpen ? `1px solid ${theme.accent}` : "1px solid transparent", borderRadius: 8, padding: "3px 9px", cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: memberPanelOpen ? theme.accent : theme.muted, whiteSpace: "nowrap" }}
               >
                 <Users size={13} style={{ display: "inline", marginRight: 4, verticalAlign: "middle" }} />
-                {headerMemberCount} members
+                {headerMemberCount} {headerMemberCount === 1 ? "member" : "members"}
               </button>
             ) : (
-              <span className="gc-member-count" style={{ fontSize: 12.5, fontWeight: 700, color: theme.muted, whiteSpace: "nowrap" }}>{headerMemberCount} members</span>
+              <span className="gc-member-count" style={{ fontSize: 12.5, fontWeight: 700, color: theme.muted, whiteSpace: "nowrap" }}>{headerMemberCount} {headerMemberCount === 1 ? "member" : "members"}</span>
             )}
-          </div>
+          </div>}
 
           {searchOpen || searchQuery ? (
             <div

@@ -81,6 +81,32 @@ async function syncGroupMemberCount(groupId: string) {
   ).catch(() => {});
 }
 
+async function listAuthUsers() {
+  const headers = serviceHeaders();
+  if (!SUPABASE_URL || !headers) return [];
+
+  type AuthUser = { id: string; email?: string; created_at?: string; last_sign_in_at?: string; user_metadata?: Record<string, string | undefined> };
+  const perPage = 1000;
+  const users: AuthUser[] = [];
+  // The admin endpoint is paginated (and may cap per_page), so read until an empty page.
+  for (let page = 1; page <= 50; page++) {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users?page=${page}&per_page=${perPage}`, { headers, cache: "no-store" });
+    if (!res.ok) break;
+    const body = await res.json().catch(() => null);
+    const batch: AuthUser[] = Array.isArray(body?.users) ? body.users : [];
+    if (!batch.length) break;
+    users.push(...batch);
+  }
+  return users.map((user) => ({
+    id: user.id,
+    email: user.email || null,
+    name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+    avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+    created_at: user.created_at || null,
+    last_sign_in_at: user.last_sign_in_at || null,
+  }));
+}
+
 export async function GET(request: Request) {
   const auth = await requireAdminDashboard(request);
   if (!auth.ok) return auth.response;
@@ -88,15 +114,16 @@ export async function GET(request: Request) {
   const headers = serviceHeaders();
   if (!SUPABASE_URL || !headers) return configError();
 
-  const [groups, members, messages, moderators, channelMessages] = await Promise.all([
+  const [groups, members, messages, moderators, channelMessages, users] = await Promise.all([
     restSelect("community_groups", "select=id,name,description,type,location,member_count,created_by,created_at&order=name.asc"),
     restSelect("community_memberships", "select=group_id,user_id,joined_at,role,display_name,avatar_url&order=joined_at.asc"),
     restSelect("community_messages", "select=id,group_id,author_id,author_name,body,message_type,media_url,file_name,created_at&order=created_at.desc&limit=300"),
     restSelect("community_moderators", "select=email,enabled,created_at&order=email.asc"),
     restSelect("community_channel_messages", "select=id,channel,author_name,body,media_url,group_id,created_at&order=created_at.desc&limit=100"),
+    listAuthUsers(),
   ]);
 
-  return adminJson({ groups, members, messages, moderators, channelMessages });
+  return adminJson({ groups, members, messages, moderators, channelMessages, users });
 }
 
 export async function POST(request: Request) {

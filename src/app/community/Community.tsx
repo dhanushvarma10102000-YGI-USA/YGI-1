@@ -1066,15 +1066,16 @@ function loadStoredIds(key) {
   }
 }
 
-async function persistGroupJoin(groupId, userId) {
-  if (!groupId || !userId) return;
+// The RPC reads the user from the session (auth.uid()), so it works even before React's user state catches up after login.
+async function persistGroupJoin(groupId) {
+  if (!groupId) return;
 
   const { error } = await supabase.rpc("join_community_group", { target_group_id: groupId });
   if (error) throw error;
 }
 
-async function persistMembershipOnly(groupId, userId) {
-  return persistGroupJoin(groupId, userId);
+async function persistMembershipOnly(groupId) {
+  return persistGroupJoin(groupId);
 }
 
 function isGroupJoinedByUser(group, joinedIds, user, exitedIds = []) {
@@ -3232,6 +3233,8 @@ export default function Community({ initialPage = "community", chromeOffset = 0 
   const [pending, setPending] = useState(startsOnDashboard ? { action: "dashboard" } : null);
   const [activeGroupId, setActiveGroupId] = useState(null);
   const [joinedIds, setJoinedIds] = useState([]);
+  // Bumped after a join is saved so the dashboard reloads its member list.
+  const [membersVersion, setMembersVersion] = useState(0);
   const [exitedIds, setExitedIds] = useState([]);
   const [mutedIds, setMutedIds] = useState([]);
   const [unreadByGroup, setUnreadByGroup] = useState({});
@@ -3409,6 +3412,7 @@ export default function Community({ initialPage = "community", chromeOffset = 0 
 
       if (cancelled || error || !data) return;
       const databaseIds = data.map((item) => item.group_id).filter(Boolean);
+
       setJoinedIds((currentIds) => {
         const nextIds = Array.from(new Set([...currentIds, ...databaseIds]));
         try {
@@ -3597,7 +3601,23 @@ export default function Community({ initialPage = "community", chromeOffset = 0 
         try {
           localStorage.setItem(JOINED_GROUPS_KEY, JSON.stringify(nextIds));
         } catch {}
-        if (!alreadyJoined) persistGroupJoin(group.id, user?.id).catch(() => {});
+        if (!alreadyJoined) {
+          persistGroupJoin(group.id).then(() => setMembersVersion((v) => v + 1)).catch((error) => {
+            setJoinedIds((current) => {
+              const reverted = current.filter((id) => id !== group.id);
+              try {
+                localStorage.setItem(JOINED_GROUPS_KEY, JSON.stringify(reverted));
+              } catch {}
+              return reverted;
+            });
+            setGroups((items) =>
+              items.map((item) =>
+                item.id === group.id ? { ...item, memberCount: Math.max(Number(item.memberCount || 0) - 1, 0) } : item
+              )
+            );
+            showCommunityToast(error?.message || "Please try joining again.", "Join failed");
+          });
+        }
         return nextIds;
       });
     }
@@ -3802,7 +3822,8 @@ export default function Community({ initialPage = "community", chromeOffset = 0 
     });
 
     if (!alreadyJoined) {
-      await persistGroupJoin(group.id, user.id);
+      await persistGroupJoin(group.id);
+      setMembersVersion((v) => v + 1);
     }
 
     let nextGroup = alreadyJoined ? normalizeGroup(group) : normalizeGroup({ ...group, memberCount: Number(group.memberCount || 0) + 1 });
@@ -3858,7 +3879,8 @@ export default function Community({ initialPage = "community", chromeOffset = 0 
 
     if (error) throw error;
 
-    await persistGroupJoin(data.id, user.id);
+    await persistGroupJoin(data.id);
+    setMembersVersion((v) => v + 1);
 
     const refreshed = await supabase
       .from("community_groups")
@@ -3924,7 +3946,7 @@ export default function Community({ initialPage = "community", chromeOffset = 0 
       if (!error && data) {
         nextGroup = normalizeGroup({ ...rowToGroup(data), memberCount: 1 });
       }
-      await persistGroupJoin(nextGroup.id, user.id).catch(() => {});
+      await persistGroupJoin(nextGroup.id).then(() => setMembersVersion((v) => v + 1)).catch(() => {});
     }
 
     setGroups((items) => {
@@ -4043,6 +4065,7 @@ export default function Community({ initialPage = "community", chromeOffset = 0 
         activeGroupId={activeGroupId}
         user={user}
         isModerator={isModerator}
+        membersVersion={membersVersion}
         moderatorEmails={moderatorEmails}
         savedModeratorEmails={savedModeratorEmails}
         onModeratorEmailsChange={updateModeratorEmails}
