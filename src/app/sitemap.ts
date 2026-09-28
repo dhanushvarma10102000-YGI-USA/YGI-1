@@ -16,6 +16,26 @@ const routes: Array<{
   { path: "/privacy", changeFrequency: "yearly", priority: 0.25 },
 ];
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// Public rows only (anon key). Story and Reddit discussion pages are otherwise only linked
+// from client-loaded feeds, so without this Google has no way to discover them.
+async function publicRows<T>(query: string): Promise<T[]> {
+  if (!SUPABASE_URL || !SUPABASE_ANON) return [];
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${query}`, {
+      headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` },
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const lastModified = new Date();
 
@@ -44,5 +64,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.75,
     }));
 
-  return [...staticRoutes, ...groupRoutes, ...articleRoutes];
+  const [stories, redditPosts] = await Promise.all([
+    publicRows<{ id: string; created_at: string }>("stories?select=id,created_at&order=created_at.desc&limit=1000"),
+    publicRows<{ id: string; created_utc: number }>("reddit_posts?select=id,created_utc&order=fetched_at.desc&limit=1000"),
+  ]);
+
+  const storyRoutes = stories.map((story) => ({
+    url: `${SITE_URL}/stories/${story.id}`,
+    lastModified: new Date(story.created_at),
+    changeFrequency: "monthly" as const,
+    priority: 0.7,
+  }));
+
+  const redditRoutes = redditPosts.map((post) => ({
+    url: `${SITE_URL}/stories/reddit/${post.id}`,
+    lastModified: post.created_utc ? new Date(post.created_utc * 1000) : lastModified,
+    changeFrequency: "weekly" as const,
+    priority: 0.5,
+  }));
+
+  return [...staticRoutes, ...groupRoutes, ...articleRoutes, ...storyRoutes, ...redditRoutes];
 }

@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     ? story.excerpt.slice(0, 155) + (story.excerpt.length > 155 ? "…" : "")
     : "A real experience shared by someone navigating life in the United States.";
   return {
-    title: `${title} | YourGuideInUSA`,
+    title,
     description,
     alternates: { canonical: `/stories/${id}` },
     openGraph: { title, description, url: `/stories/${id}`, type: "article" },

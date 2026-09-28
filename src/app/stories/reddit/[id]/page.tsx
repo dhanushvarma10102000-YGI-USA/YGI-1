@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     : "Real experiences from immigrants and international students navigating life in the USA.";
 
   return {
-    title: `${title} | YourGuideInUSA`,
+    title,
     description,
     alternates: { canonical: `/stories/reddit/${id}` },
     openGraph: { title, description, url: `/stories/reddit/${id}`, type: "article" },
