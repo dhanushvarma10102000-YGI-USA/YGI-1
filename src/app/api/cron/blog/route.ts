@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { generateTopic, slugify, writeArticle } from "@/lib/article-writer";
 
 const TOPICS = [
   { title: "Health Insurance for F-1 Students in the USA", category: "Insurance", keywords: "health insurance F-1 visa students USA" },
@@ -86,10 +87,6 @@ const TOPICS = [
   { title: "Understanding US Culture Shock — What to Expect", category: "Daily Life", keywords: "culture shock USA international student" },
 ];
 
-function slugify(text: string) {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
-}
-
 // Throws instead of returning an empty list: picking topics without knowing what exists
 // just produces a duplicate slug that the unique constraint rejects.
 async function getPublishedArticles(): Promise<{ slugs: Set<string>; titles: string[] }> {
@@ -106,157 +103,6 @@ async function getPublishedArticles(): Promise<{ slugs: Set<string>; titles: str
     slugs: new Set(rows.map((r) => r.slug || "").filter(Boolean)),
     titles: rows.map((r) => r.title || "").filter(Boolean),
   };
-}
-
-async function fetchImage(keywords: string): Promise<string> {
-  const key = process.env.PEXELS_API_KEY;
-  if (!key) return "";
-  try {
-    const res = await fetch(
-      `https://api.pexels.com/v1/search?query=${encodeURIComponent(keywords)}&per_page=5&orientation=landscape`,
-      { headers: { Authorization: key } }
-    );
-    if (!res.ok) return "";
-    const data = await res.json();
-    const photos = data.photos ?? [];
-    if (!photos.length) return "";
-    const photo = photos[Math.floor(Math.random() * photos.length)];
-    return photo.src?.large ?? "";
-  } catch {
-    return "";
-  }
-}
-
-async function writeArticle(topic: { title: string; category: string; keywords: string }) {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
-  if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
-
-  const prompt = `You are writing for "YourGuideInUSA", a helpful website for international students and newcomers settling in the United States.
-
-Do NOT write generic SEO filler. Do NOT keyword-stuff. Write original, people-first content that reads like honest advice from someone who has actually been through the process.
-
-Topic: ${topic.title}
-Target keyword: ${topic.keywords}
-Category: ${topic.category}
-
-Accuracy rules:
-- Do not invent laws, dates, prices, deadlines, or official form names.
-- For immigration, legal, financial, or health claims, use cautious language (e.g. "typically", "check with your DSO").
-- If a detail changes often, tell the reader what to verify rather than stating it as fact.
-
-Writing rules:
-- Length: 1,200–1,500 words
-- Tone: Direct and warm — like advice from a friend who has been through it, not a corporate blog
-- Structure: ## for main headings, ### for subheadings
-- Include: specific practical steps, real cost ranges where known, a short FAQ at the end
-- Vary sentence length. Mix short punchy sentences with longer ones.
-- Write in plain markdown (no code blocks, no HTML)
-
-At the very end (after the article), add:
----META---
-EXCERPT: (2 sentence summary under 160 characters)
-READ_TIME: (e.g. "8 min read")
----END---
-
-Write the full article now:`;
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 4000,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!res.ok) throw new Error(`Claude API error: ${res.status}`);
-
-  const data = await res.json();
-  const fullText: string = data.content?.[0]?.text ?? "";
-
-  let content = fullText;
-  let excerpt = "";
-  let readTime = "7 min read";
-
-  if (fullText.includes("---META---")) {
-    const parts = fullText.split("---META---");
-    content = parts[0].trim();
-    const meta = parts[1].split("---END---")[0] ?? parts[1];
-    for (const line of meta.trim().split("\n")) {
-      if (line.startsWith("EXCERPT:")) excerpt = line.replace("EXCERPT:", "").trim();
-      if (line.startsWith("READ_TIME:")) readTime = line.replace("READ_TIME:", "").trim();
-    }
-  }
-
-  if (!excerpt) {
-    const lines = content.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
-    excerpt = (lines[0] ?? topic.title).slice(0, 200);
-  }
-
-  return { content, excerpt, readTime };
-}
-
-// Called when every predefined topic has been used — asks Claude to invent a fresh one.
-// Receives the list of already-published titles so it never repeats.
-async function generateTopic(
-  usedTitles: string[]
-): Promise<{ title: string; category: string; keywords: string }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
-  if (!apiKey) throw new Error("Missing ANTHROPIC_API_KEY");
-
-  const CATEGORIES = ["Insurance", "Banking", "Visa & OPT", "Housing", "Jobs", "City Guides", "Daily Life"];
-
-  const prompt = `You are a content strategist for "YourGuideInUSA", a website helping international students and newcomers settle in the United States.
-
-Generate ONE new blog article topic that has NOT already been covered. The topic must be practical, specific, and genuinely useful for F-1 visa holders or recent immigrants.
-
-Already published titles (do NOT repeat or closely paraphrase these):
-${usedTitles.map((t) => `- ${t}`).join("\n")}
-
-Pick a category from this exact list: ${CATEGORIES.join(", ")}
-
-Reply with ONLY this JSON — no explanation, no markdown, no code block:
-{"title":"...","category":"...","keywords":"..."}
-
-Rules:
-- title: clear, specific, 6–12 words
-- category: must be one of the listed categories exactly
-- keywords: 4–7 words describing the search query for this topic`;
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: 120,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!res.ok) throw new Error(`Claude topic generation failed: ${res.status}`);
-
-  const data = await res.json();
-  const raw = (data.content?.[0]?.text ?? "").trim();
-
-  // Strip any accidental markdown code fences
-  const jsonStr = raw.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/i, "").trim();
-  const topic = JSON.parse(jsonStr) as { title: string; category: string; keywords: string };
-
-  if (!topic.title || !topic.category || !topic.keywords) {
-    throw new Error("Claude returned an incomplete topic object");
-  }
-  return topic;
 }
 
 async function publishToSupabase(article: Record<string, unknown>): Promise<boolean> {
@@ -280,7 +126,7 @@ async function publishToSupabase(article: Record<string, unknown>): Promise<bool
   throw new Error(`Supabase insert failed (${res.status}): ${detail.slice(0, 200)}`);
 }
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
@@ -308,10 +154,9 @@ export async function GET(request: Request) {
       if (!topic) throw new Error("Could not find an unused topic after 3 attempts");
     }
 
+    // Keep the planned title and slug: the slug was checked against published articles above.
     const slug = slugify(topic.title);
-
-    const article = await writeArticle(topic);
-    const imageUrl = await fetchImage(topic.keywords);
+    const article = await writeArticle({ topic: topic.title, category: topic.category, keywords: topic.keywords });
 
     const saved = await publishToSupabase({
       title: topic.title,
@@ -319,15 +164,15 @@ export async function GET(request: Request) {
       excerpt: article.excerpt,
       content: article.content,
       category: topic.category,
-      image_url: imageUrl,
-      read_time: article.readTime,
+      image_url: article.image_url,
+      read_time: article.read_time,
       published_at: new Date().toISOString(),
     });
 
     if (!saved) return NextResponse.json({ error: "Failed to publish to Supabase" }, { status: 500 });
 
     return NextResponse.json({ ok: true, slug, title: topic.title });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message ?? "Unknown error" }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });
   }
 }

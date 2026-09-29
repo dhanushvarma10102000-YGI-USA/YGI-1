@@ -6,6 +6,8 @@ import { AnimatedGradientBg, GlassCard } from "@/components/ds/AnimatedGradient"
 import { getArticle, getRelatedArticles } from "@/lib/articles";
 import type { Article } from "@/lib/articles";
 import ShareActions from "./ShareActions";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { absoluteUrl, buildArticleJsonLd, buildBreadcrumbJsonLd, buildFaqJsonLd, extractFaqItems, jsonLdHtml } from "@/lib/seo";
 
 const CAT_COLORS: Record<string, string> = {
@@ -18,49 +20,37 @@ const CAT_COLORS: Record<string, string> = {
   "Daily Life": "#14b8a6",
 };
 
-function renderInline(text: string) {
-  const parts = text.split(/(\*\*.*?\*\*)/g);
-  return parts.map((part, index) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={index}>{part.slice(2, -2)}</strong>;
-    }
-    return <span key={index}>{part}</span>;
-  });
-}
-
-function renderMd(content: string) {
-  const elements: React.ReactNode[] = [];
-  let list: React.ReactNode[] = [];
-  let key = 0;
-  const flush = () => {
-    if (!list.length) return;
-    elements.push(<ul key={key++} style={{ paddingLeft: "20px", margin: "8px 0 16px" }}>{list}</ul>);
-    list = [];
-  };
-
-  content.trim().split("\n").forEach((raw) => {
-    const line = raw.trim();
-    if (!line) {
-      flush();
-      return;
-    }
-    if (line.startsWith("## ")) {
-      flush();
-      elements.push(<h2 key={key++} style={{ fontSize: "22px", fontWeight: 700, color: "#111827", margin: "32px 0 12px", letterSpacing: "-0.5px" }}>{line.slice(3)}</h2>);
-    } else if (line.startsWith("### ")) {
-      flush();
-      elements.push(<h3 key={key++} style={{ fontSize: "17px", fontWeight: 600, color: "#111827", margin: "20px 0 8px" }}>{line.slice(4)}</h3>);
-    } else if (line.startsWith("- ") || /^\d+\.\s/.test(line)) {
-      const text = line.startsWith("- ") ? line.slice(2) : line.replace(/^\d+\.\s/, "");
-      list.push(<li key={key++} style={{ color: "#4B5563", marginBottom: "6px", lineHeight: 1.7, fontSize: "15px" }}>{renderInline(text)}</li>);
-    } else {
-      flush();
-      elements.push(<p key={key++} style={{ color: "#4B5563", lineHeight: 1.85, fontSize: "16px", margin: "0 0 16px" }}>{renderInline(line)}</p>);
-    }
-  });
-  flush();
-  return elements;
-}
+// Markdown components styled to match the site. Raw HTML in content is ignored
+// (react-markdown's default), so article text can't inject markup.
+const markdownComponents: Components = {
+  h2: ({ children }) => <h2 style={{ fontSize: "22px", fontWeight: 700, color: "#111827", margin: "32px 0 12px", letterSpacing: "-0.5px" }}>{children}</h2>,
+  h3: ({ children }) => <h3 style={{ fontSize: "17px", fontWeight: 600, color: "#111827", margin: "20px 0 8px" }}>{children}</h3>,
+  p: ({ children }) => <p style={{ color: "#4B5563", lineHeight: 1.85, fontSize: "16px", margin: "0 0 16px" }}>{children}</p>,
+  ul: ({ children }) => <ul style={{ paddingLeft: "20px", margin: "8px 0 16px", listStyle: "disc" }}>{children}</ul>,
+  ol: ({ children }) => <ol style={{ paddingLeft: "20px", margin: "8px 0 16px", listStyle: "decimal" }}>{children}</ol>,
+  li: ({ children }) => <li style={{ color: "#4B5563", marginBottom: "6px", lineHeight: 1.7, fontSize: "15px" }}>{children}</li>,
+  strong: ({ children }) => <strong style={{ color: "#111827" }}>{children}</strong>,
+  a: ({ href, children }) => {
+    const external = /^https?:\/\//.test(href || "");
+    return (
+      <a href={href} style={{ color: "#2f8f86", textDecoration: "underline" }} {...(external ? { target: "_blank", rel: "noopener noreferrer nofollow" } : {})}>
+        {children}
+      </a>
+    );
+  },
+  blockquote: ({ children }) => <blockquote style={{ borderLeft: "3px solid #2f8f86", padding: "4px 0 4px 16px", margin: "16px 0", color: "#374151" }}>{children}</blockquote>,
+  table: ({ children }) => (
+    <div style={{ overflowX: "auto", margin: "16px 0" }}>
+      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "14px" }}>{children}</table>
+    </div>
+  ),
+  th: ({ children }) => <th style={{ textAlign: "left", padding: "8px 10px", borderBottom: "2px solid #e5e7eb", color: "#111827" }}>{children}</th>,
+  td: ({ children }) => <td style={{ padding: "8px 10px", borderBottom: "1px solid #f0f0f0", color: "#4B5563" }}>{children}</td>,
+  img: ({ src, alt }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={typeof src === "string" ? src : undefined} alt={alt || ""} loading="lazy" style={{ maxWidth: "100%", borderRadius: "12px", margin: "12px 0" }} />
+  ),
+};
 
 function fmt(date: string) {
   try {
@@ -135,7 +125,11 @@ export default async function ArticlePage({ params }: Props) {
                 {article.read_time && <span>{article.read_time}</span>}
               </div>
 
-              <div className="mt-6">{renderMd(article.content || "")}</div>
+              <div className="mt-6">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {article.content || ""}
+                </ReactMarkdown>
+              </div>
               <ShareActions title={article.title} />
             </article>
           </GlassCard>

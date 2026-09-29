@@ -29,11 +29,11 @@ function configError() {
   );
 }
 
-async function countRows(table: string) {
+async function countRows(table: string, filter = "") {
   const headers = serviceHeaders({ Prefer: "count=exact" });
   if (!SUPABASE_URL || !headers) throw new Error("Missing Supabase config");
 
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=*${filter}`, {
     method: "HEAD",
     headers,
     cache: "no-store",
@@ -59,10 +59,10 @@ export async function GET(request: Request) {
   const headers = serviceHeaders();
   if (!SUPABASE_URL || !headers) return configError();
 
-  const articlesRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/${TABLES.articles}?select=*&order=created_at.desc&limit=50`,
-    { headers, cache: "no-store" }
-  );
+  const [articlesRes, deletedRes] = await Promise.all([
+    fetch(`${SUPABASE_URL}/rest/v1/${TABLES.articles}?select=*&deleted_at=is.null&order=created_at.desc&limit=50`, { headers, cache: "no-store" }),
+    fetch(`${SUPABASE_URL}/rest/v1/${TABLES.articles}?select=*&deleted_at=not.is.null&order=deleted_at.desc&limit=20`, { headers, cache: "no-store" }),
+  ]);
   if (!articlesRes.ok) {
     return NextResponse.json(
       { error: `Could not load articles (${articlesRes.status}).` },
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
   await Promise.all(
     (Object.entries(TABLES) as [keyof typeof counts, string][]).map(async ([key, table]) => {
       try {
-        counts[key] = await countRows(table);
+        counts[key] = await countRows(table, key === "articles" ? "&deleted_at=is.null" : "");
       } catch {
         counts[key] = 0;
       }
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
   );
 
   return NextResponse.json(
-    { articles: await articlesRes.json(), counts },
+    { articles: await articlesRes.json(), deleted: deletedRes.ok ? await deletedRes.json() : [], counts },
     { headers: { "Cache-Control": "no-store" } }
   );
 }
@@ -156,13 +156,18 @@ export async function DELETE(request: Request) {
     );
   }
 
+  // Default is a soft delete (hidden from the site, restorable); ?permanent=1 removes the row.
+  const permanent = url.searchParams.get("permanent") === "1";
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/${TABLES.articles}?id=eq.${encodeURIComponent(id)}`,
-    {
-      method: "DELETE",
-      headers: { ...headers, Prefer: "return=minimal" },
-      cache: "no-store",
-    }
+    `${SUPABASE_URL}/rest/v1/${TABLES.articles}?id=eq.${encodeURIComponent(id)}${permanent ? "&deleted_at=not.is.null" : ""}`,
+    permanent
+      ? { method: "DELETE", headers: { ...headers, Prefer: "return=minimal" }, cache: "no-store" }
+      : {
+          method: "PATCH",
+          headers: { ...headers, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ deleted_at: new Date().toISOString() }),
+          cache: "no-store",
+        }
   );
 
   if (!res.ok) {
@@ -174,4 +179,32 @@ export async function DELETE(request: Request) {
   }
 
   return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
+}
+
+// Restore a soft-deleted article.
+export async function PATCH(request: Request) {
+  const auth = await requireAdminDashboard(request);
+  if (!auth.ok) return auth.response;
+
+  const headers = serviceHeaders({ "Content-Type": "application/json", Prefer: "return=representation" });
+  if (!SUPABASE_URL || !headers) return configError();
+
+  const body = await request.json().catch(() => null);
+  const id = String(body?.id || "").trim();
+  if (body?.action !== "restore" || !id) {
+    return NextResponse.json({ error: "Use { action: \"restore\", id }." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  }
+
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${TABLES.articles}?id=eq.${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ deleted_at: null }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return NextResponse.json({ error: `Restore failed (${res.status}): ${text.slice(0, 180)}` }, { status: 502, headers: { "Cache-Control": "no-store" } });
+  }
+  const rows = await res.json();
+  return NextResponse.json({ article: rows?.[0] || null }, { headers: { "Cache-Control": "no-store" } });
 }

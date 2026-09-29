@@ -23,6 +23,7 @@ import React, {
   useId,
 } from "react";
 import { supabase } from "@/lib/supabase";
+import { absoluteUrl } from "@/lib/seo";
 
 /* ============================================================
    CONFIG
@@ -56,9 +57,11 @@ interface Article {
   views: number | null;
 }
 interface QueueTopic {
+  id: string;
   title: string;
   category: string;
 }
+type Prefill = { title: string; category: string; queueId?: string };
 interface Counts {
   articles: number;
   users: number;
@@ -86,16 +89,21 @@ interface Store {
   counts: Counts;
   loading: { articles: boolean; counts: boolean };
   queue: QueueTopic[];
-  setQueue: React.Dispatch<React.SetStateAction<QueueTopic[]>>;
+  queueActions: {
+    add: (title: string, category: string) => Promise<void>;
+    move: (index: number, dir: number) => Promise<void>;
+    remove: (id: string) => Promise<void>;
+  };
   setTab: (t: string) => void;
   onView: (a: Article) => void;
   onDelete: (a: Article) => void;
   onRestore: (a: Article) => void;
+  onPurge: (a: Article) => void;
   onPublish: (draft: Draft) => Promise<Article>;
   push: (msg: string, type?: ToastType) => void;
   refresh: () => void;
-  prefillTopic: { title: string; category: string } | null;
-  setPrefillTopic: (t: { title: string; category: string } | null) => void;
+  prefillTopic: Prefill | null;
+  setPrefillTopic: (t: Prefill | null) => void;
 }
 type ToastType = "info" | "success" | "error";
 
@@ -239,8 +247,8 @@ async function verifyAdminTwoStep(code: string): Promise<{ ok: boolean; twoStep:
   });
 }
 
-async function fetchAdminContent(): Promise<{ articles: any[]; counts: Counts }> {
-  return adminApi<{ articles: any[]; counts: Counts }>("/api/admin/content");
+async function fetchAdminContent(): Promise<{ articles: any[]; deleted?: any[]; counts: Counts }> {
+  return adminApi<{ articles: any[]; deleted?: any[]; counts: Counts }>("/api/admin/content");
 }
 
 async function insertAdminArticle(row: Record<string, any>): Promise<any> {
@@ -251,11 +259,24 @@ async function insertAdminArticle(row: Record<string, any>): Promise<any> {
   return data.article;
 }
 
-async function deleteAdminArticle(id: string | number): Promise<boolean> {
-  await adminApi<{ ok: boolean }>(`/api/admin/content?id=${encodeURIComponent(String(id))}`, {
+// Soft delete by default (restorable); permanent removes the row for good.
+async function deleteAdminArticle(id: string | number, permanent = false): Promise<boolean> {
+  await adminApi<{ ok: boolean }>(`/api/admin/content?id=${encodeURIComponent(String(id))}${permanent ? "&permanent=1" : ""}`, {
     method: "DELETE",
   });
   return true;
+}
+
+async function restoreAdminArticle(id: string | number): Promise<any> {
+  const data = await adminApi<{ article: any }>("/api/admin/content", {
+    method: "PATCH",
+    body: JSON.stringify({ action: "restore", id: String(id) }),
+  });
+  return data.article;
+}
+
+async function queueApi<T>(method: string, body?: unknown, query = ""): Promise<T> {
+  return adminApi<T>(`/api/admin/queue${query}`, { method, ...(body ? { body: JSON.stringify(body) } : {}) });
 }
 
 async function fetchAdminCommunity(): Promise<AdminCommunityData> {
@@ -283,7 +304,7 @@ function normalizeArticle(row: any, i = 0): Article {
     row.slug ||
     (title || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const words = typeof content === "string" ? content.split(/\s+/).filter(Boolean).length : 0;
-  const readTime = row.read_time || row.reading_time || Math.max(1, Math.round(words / 200)) || 5;
+  const readTime = parseInt(String(row.read_time || row.reading_time || ""), 10) || Math.max(1, Math.round(words / 200)) || 5;
   return {
     id: row.id != null ? row.id : `local-${i}`,
     raw: row,
@@ -347,24 +368,6 @@ async function generateArticle({
    ADMIN DEFAULTS
    ============================================================ */
 const EMPTY_COUNTS: Counts = { articles: 0, users: 0, posts: 0, groups: 0 };
-
-const QUEUE_TOPICS: QueueTopic[] = [
-  { title: "2026-27 University Health Insurance Waiver Checklist: What to Verify Before You Decline a School Plan", category: "Insurance" },
-  { title: "F-1 Summer Internship Timeline: CPT, Pre-OPT, Offer Letter, and DSO Steps to Verify", category: "Visa & OPT" },
-  { title: "Apartment Scam Checklist for Newcomers Signing a Lease Before Reaching the USA", category: "Housing" },
-  { title: "First 72 Hours After Landing in the USA: SIM, Bank, Groceries, Transit, and Campus Tasks", category: "Daily Life" },
-  { title: "Best eSIM and Phone Plan Setup for People Arriving in the USA This Semester", category: "Daily Life" },
-  { title: "Opening a US Bank Account Without SSN History: Documents to Confirm Before Visiting a Branch", category: "Banking" },
-  { title: "CPT vs On-Campus Work vs Volunteering: Common Mistakes to Check Before Starting", category: "Visa & OPT" },
-  { title: "How to Use YourGuideInUSA Guide Search to Compare Housing, Food, Transit, and Campus Areas", category: "City Guides" },
-  { title: "Move-In Week Grocery and Essentials List for a First Apartment Near Campus", category: "Daily Life" },
-  { title: "Credit Score From Zero: Secured Card, Authorized User, Rent Reporting, and What to Avoid", category: "Banking" },
-  { title: "City Safety Checklist Before Choosing Off-Campus Housing Near a University", category: "Housing" },
-  { title: "OPT Application Prep: Photos, I-765 Details, Timing, and Official Pages to Recheck", category: "Visa & OPT" },
-  { title: "How to Ask Useful Questions in YourGuideInUSA Community Groups Before You Move", category: "General" },
-  { title: "Public Transit, Rideshare, and Bike Costs to Compare Before Picking a Neighborhood", category: "City Guides" },
-  { title: "Resume and Job Search Basics for Newcomers: What to Customize Before Applying", category: "Jobs" },
-];
 
 const TRAFFIC = {
   today: { visitors: 0, views: 0, bounce: 0, avgTime: "0m 00s" },
@@ -1272,7 +1275,7 @@ function EmptyState() {
   );
 }
 
-function DeletedRow({ a, onRestore }: { a: Article; onRestore: (a: Article) => void }) {
+function DeletedRow({ a, onRestore, onPurge }: { a: Article; onRestore: (a: Article) => void; onPurge: (a: Article) => void }) {
   const [h, setH] = useState(false);
   return (
     <div onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)} style={{ display: "flex", alignItems: "center", gap: 15, padding: "11px 14px", borderRadius: 12, background: h ? "var(--card-2)" : "transparent", transition: "background .15s", opacity: 0.7 }}>
@@ -1280,16 +1283,17 @@ function DeletedRow({ a, onRestore }: { a: Article; onRestore: (a: Article) => v
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{a.title}</div>
         <div style={{ fontSize: 12, color: "var(--muted-2)", fontFamily: "var(--mono)", marginTop: 4 }}>
-          <Badge category={a.category} /> &nbsp;deleted this session
+          <Badge category={a.category} /> &nbsp;deleted {fmtDate(a.raw?.deleted_at || null)}
         </div>
       </div>
       <Btn variant="ghost" size="sm" onClick={() => onRestore(a)} style={{ opacity: h ? 1 : 0.55, transition: "opacity .15s" }}>Restore</Btn>
+      <Btn variant="danger" size="sm" onClick={() => onPurge(a)} style={{ opacity: h ? 1 : 0.55, transition: "opacity .15s" }}>Delete forever</Btn>
     </div>
   );
 }
 
 function ArticlesTab({ store }: { store: Store }) {
-  const { articles, deletedArticles, loading, refresh, onView, onDelete, onRestore } = store;
+  const { articles, deletedArticles, loading, refresh, onView, onDelete, onRestore, onPurge } = store;
   const [filter, setFilter] = useState("All");
   const [showDeleted, setShowDeleted] = useState(false);
   const cats = ["All", ...CATEGORIES.filter((c) => articles.some((a) => a.category === c))];
@@ -1328,8 +1332,8 @@ function ArticlesTab({ store }: { store: Store }) {
           </button>
           {showDeleted && (
             <Card style={{ padding: 8, marginTop: 8, border: "1px dashed var(--border)" }}>
-              <div style={{ padding: "6px 14px 4px", fontSize: 12, color: "var(--muted)" }}>These were deleted this session. Restore puts them back; they won't reappear after a page refresh.</div>
-              {deletedArticles.map((a) => <DeletedRow key={a.id} a={a} onRestore={onRestore} />)}
+              <div style={{ padding: "6px 14px 4px", fontSize: 12, color: "var(--muted)" }}>Hidden from the blog. Restore puts an article back online; Delete forever removes it permanently.</div>
+              {deletedArticles.map((a) => <DeletedRow key={a.id} a={a} onRestore={onRestore} onPurge={onPurge} />)}
             </Card>
           )}
         </div>
@@ -1369,24 +1373,28 @@ function ArticleViewer({ article, onClose }: { article: Article | null; onClose:
    QUEUE TAB
    ============================================================ */
 function QueueTab({ store }: { store: Store }) {
-  const { queue, setQueue, setTab, setPrefillTopic } = store;
-  const move = (i: number, dir: number) => {
-    setQueue((q) => {
-      const next = [...q];
-      const j = i + dir;
-      if (j < 0 || j >= next.length) return q;
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
+  const { queue, queueActions, setTab, setPrefillTopic } = store;
+  const [newTitle, setNewTitle] = useState("");
+  const [newCategory, setNewCategory] = useState("Daily Life");
+  const addTopic = async () => {
+    if (!newTitle.trim()) return;
+    await queueActions.add(newTitle.trim(), newCategory);
+    setNewTitle("");
   };
-  const remove = (i: number) => setQueue((q) => q.filter((_, idx) => idx !== i));
   return (
     <div className="ygc-fade">
       <PageHeader
         title="Queue"
         subtitle={`${queue.length} topics queued for review and publishing`}
-        actions={<Btn variant="primary" onClick={() => setTab("generate")}><Icon name="plus" size={15} color="#fff" /> Add custom topic</Btn>}
+        actions={<Btn variant="primary" onClick={() => setTab("generate")}><Icon name="generate" size={15} color="#fff" /> Write a one-off topic</Btn>}
       />
+      <Card style={{ padding: 14, marginBottom: 18, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addTopic(); }} placeholder="Add a topic to the queue" style={{ ...fieldInput, flex: "1 1 320px", width: "auto" }} />
+        <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} style={{ ...fieldInput, width: 170, cursor: "pointer" }}>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <Btn variant="primary" onClick={addTopic} disabled={!newTitle.trim()}><Icon name="plus" size={15} color="#fff" /> Add</Btn>
+      </Card>
       {queue[0] && (
         <Card style={{ padding: 18, marginBottom: 18, background: "linear-gradient(100deg, rgba(52,211,153,0.12), rgba(52,211,153,0.03))", border: "1px solid rgba(52,211,153,0.28)", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
           <div style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, background: "rgba(52,211,153,0.16)", border: "1px solid rgba(52,211,153,0.35)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--success)" }}>
@@ -1403,7 +1411,7 @@ function QueueTab({ store }: { store: Store }) {
         {queue.map((t, i) => {
           const isNext = i === 0;
           return (
-            <Card key={t.title + i} hover style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, borderColor: isNext ? "rgba(52,211,153,0.3)" : "var(--border)", background: isNext ? "rgba(52,211,153,0.06)" : "var(--card)" }}>
+            <Card key={t.id} hover style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 14, borderColor: isNext ? "rgba(52,211,153,0.3)" : "var(--border)", background: isNext ? "rgba(52,211,153,0.06)" : "var(--card)" }}>
               <div style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--mono)", fontSize: 13, fontWeight: 600, background: isNext ? "var(--success)" : "var(--card-2)", color: isNext ? "#052e1b" : "var(--muted)", border: isNext ? "none" : "1px solid var(--border)" }}>{i + 1}</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
@@ -1411,19 +1419,19 @@ function QueueTab({ store }: { store: Store }) {
               </div>
               <Badge category={t.category} />
               <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-                <Btn size="sm" variant="primary" onClick={() => { setPrefillTopic({ title: t.title, category: t.category }); setTab("generate"); }} style={{ fontSize: 12, padding: "4px 10px", height: 28 }}>
+                <Btn size="sm" variant="primary" onClick={() => { setPrefillTopic({ title: t.title, category: t.category, queueId: t.id }); setTab("generate"); }} style={{ fontSize: 12, padding: "4px 10px", height: 28 }}>
                   Write →
                 </Btn>
-                <IconBtn name="up" title="Move up" onClick={() => move(i, -1)} size={14} />
-                <IconBtn name="down" title="Move down" onClick={() => move(i, 1)} size={14} />
-                <IconBtn name="close" title="Remove" danger onClick={() => remove(i)} size={14} />
+                <IconBtn name="up" title="Move up" onClick={() => queueActions.move(i, -1)} size={14} />
+                <IconBtn name="down" title="Move down" onClick={() => queueActions.move(i, 1)} size={14} />
+                <IconBtn name="close" title="Remove" danger onClick={() => queueActions.remove(t.id)} size={14} />
               </div>
             </Card>
           );
         })}
         {queue.length === 0 && (
           <div style={{ padding: "48px 20px", textAlign: "center", color: "var(--muted)" }}>
-            Queue is empty. <button onClick={() => setTab("generate")} style={{ color: "var(--accent-2)", background: "none", border: "none", fontWeight: 600, fontSize: 14 }}>Add a topic →</button>
+            Queue is empty. Add a topic above.
           </div>
         )}
       </div>
@@ -1437,7 +1445,7 @@ function QueueTab({ store }: { store: Store }) {
 const GEN_STEPS = [
   { key: "writing", label: "Claude is writing the article…", icon: "generate" },
   { key: "safety", label: "Adding source and risk notes…", icon: "info" },
-  { key: "publish", label: "Publishing to the blog…", icon: "external" },
+  { key: "review", label: "Preparing the draft for your review…", icon: "check" },
 ];
 
 const fieldLabel: React.CSSProperties = { display: "block", fontSize: 12.5, fontWeight: 600, color: "var(--muted)", marginBottom: 8 };
@@ -1463,7 +1471,8 @@ function LoadingSteps({ active }: { active: number }) {
 }
 
 function GenerateTab({ store }: { store: Store }) {
-  const { onPublish, push, prefillTopic, setPrefillTopic } = store;
+  const { onPublish, push, prefillTopic, setPrefillTopic, queueActions } = store;
+  const [queueId, setQueueId] = useState<string | undefined>(undefined);
   const [topic, setTopic] = useState("");
   const [category, setCategory] = useState("Daily Life");
   const [phase, setPhase] = useState<"idle" | "loading" | "preview" | "published" | "error">("idle");
@@ -1480,6 +1489,7 @@ function GenerateTab({ store }: { store: Store }) {
     if (prefillTopic) {
       setTopic(prefillTopic.title);
       setCategory(prefillTopic.category);
+      setQueueId(prefillTopic.queueId);
       setPhase("idle");
       setDraft(null);
       setPublished(null);
@@ -1497,23 +1507,15 @@ function GenerateTab({ store }: { store: Store }) {
     setErrMsg("");
     setReviewConfirmed(false);
     const stepTimer = setInterval(() => setActiveStep((s) => Math.min(s + 1, GEN_STEPS.length - 1)), 1800);
-    let readyDraft: Draft | null = null;
+    // Generation only produces a draft; nothing goes live until it is reviewed and published below.
     try {
       const result = await generateArticle({ topic: topic.trim(), category });
-      readyDraft = { ...result, date: new Date() };
-      setDraft(readyDraft);
-      setActiveStep(GEN_STEPS.length - 1);
-      const saved = await onPublish(readyDraft);
       clearInterval(stepTimer);
-      setPublished(saved || readyDraft);
-      setPhase("published");
+      setDraft({ ...result, date: new Date() });
+      setPhase("preview");
     } catch (e: any) {
       clearInterval(stepTimer);
-      setErrMsg(
-        readyDraft
-          ? e.message || "Article was generated, but publishing failed. Check Supabase and try again."
-          : e.message || "Generation failed. Check the server API key and try again."
-      );
+      setErrMsg(e.message || "Generation failed. Check the server API key and try again.");
       setPhase("error");
     }
   };
@@ -1531,6 +1533,10 @@ function GenerateTab({ store }: { store: Store }) {
       const article = saved || draft;
       setPublished(article);
       setPhase("published");
+      if (queueId) {
+        queueActions.remove(queueId).catch(() => {});
+        setQueueId(undefined);
+      }
 
       if (postToSocial) {
         setSocialStatus("posting");
@@ -1543,7 +1549,7 @@ function GenerateTab({ store }: { store: Store }) {
               excerpt: (article as Draft).excerpt ?? "",
               category: article.category,
               slug: (article as Draft).slug ?? "",
-              url: `https://yourguideinusa.com/blog/${(article as Draft).slug ?? ""}`,
+              url: absoluteUrl(`/blog/${(article as Draft).slug ?? ""}`),
               image_url: (article as Draft).image_url ?? (article as Article).image ?? null,
             },
           }),
@@ -1552,9 +1558,8 @@ function GenerateTab({ store }: { store: Store }) {
           .catch(() => { setSocialStatus("offline"); });
       }
     } catch (e: any) {
-      push("Saved locally — Supabase insert failed: " + e.message, "error");
-      setPublished(draft);
-      setPhase("published");
+      // Stay on the draft so it can be retried; it is not live.
+      push("Publishing failed: " + e.message, "error");
     } finally {
       setPublishing(false);
     }
@@ -1570,7 +1575,7 @@ function GenerateTab({ store }: { store: Store }) {
 
   return (
     <div className="ygc-fade" style={{ maxWidth: 760 }}>
-      <PageHeader title="Generate article" subtitle="Describe a topic and it publishes automatically after generation." />
+      <PageHeader title="Generate article" subtitle="Claude writes a draft; you review it, then publish." />
       {(phase === "idle" || phase === "loading" || phase === "error") && (
         <Card style={{ padding: 24 }}>
           <label style={fieldLabel}>Article topic</label>
@@ -1596,7 +1601,7 @@ function GenerateTab({ store }: { store: Store }) {
           </div>
           {phase !== "loading" && (
             <Btn variant="gradient" size="lg" onClick={run} style={{ marginTop: 20, width: "100%" }}>
-              <Icon name="generate" size={18} color="#fff" /> Generate and publish
+              <Icon name="generate" size={18} color="#fff" /> Generate draft
             </Btn>
           )}
           {phase === "loading" && <LoadingSteps active={activeStep} />}
@@ -1674,9 +1679,9 @@ function GenerateTab({ store }: { store: Store }) {
                 )}
               </div>
             </div>
-            <div style={{ marginTop: 14, padding: 18, borderRadius: 12, background: "#f8fafc", border: "1px solid var(--border)", maxHeight: 280, overflow: "hidden", position: "relative" }}>
-              <div style={{ fontSize: 13.5, color: "var(--muted)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{(draft.content || "").replace(/[#*`]/g, "").slice(0, 600)}…</div>
-              <div style={{ position: "absolute", inset: "auto 0 0 0", height: 70, background: "linear-gradient(transparent, var(--card))" }} />
+            <div style={{ marginTop: 14, padding: 18, borderRadius: 12, background: "#f8fafc", border: "1px solid var(--border)", maxHeight: 520, overflowY: "auto" }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--muted)", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>Full draft (Markdown)</div>
+              <div style={{ fontSize: 13.5, color: "var(--text)", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{draft.content}</div>
             </div>
           </div>
           <div style={{ padding: "16px 26px", borderTop: "1px solid var(--border)", display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
@@ -2927,8 +2932,8 @@ export default function AdminPage() {
   const [deletedArticles, setDeletedArticles] = useState<Article[]>([]);
   const [counts, setCounts] = useState<Counts>(EMPTY_COUNTS);
   const [loading, setLoading] = useState({ articles: true, counts: true });
-  const [queue, setQueue] = useState<QueueTopic[]>(QUEUE_TOPICS);
-  const [prefillTopic, setPrefillTopic] = useState<{ title: string; category: string } | null>(null);
+  const [queue, setQueue] = useState<QueueTopic[]>([]);
+  const [prefillTopic, setPrefillTopic] = useState<Prefill | null>(null);
 
   const { push, node: toastNode } = useToasts();
   const [viewing, setViewing] = useState<Article | null>(null);
@@ -2980,9 +2985,14 @@ export default function AdminPage() {
   const loadAdminData = useCallback(async () => {
     setLoading({ articles: true, counts: true });
     try {
-      const data = await fetchAdminContent();
+      const [data, queueData] = await Promise.all([
+        fetchAdminContent(),
+        queueApi<{ queue: QueueTopic[] }>("GET").catch(() => ({ queue: [] as QueueTopic[] })),
+      ]);
       setArticles(data.articles.map((r, i) => normalizeArticle(r, i)));
+      setDeletedArticles((data.deleted || []).map((r, i) => normalizeArticle(r, i)));
       setCounts(data.counts);
+      setQueue(queueData.queue || []);
     } catch (error: any) {
       if (error?.status === 401) {
         setAuthStatus("login");
@@ -3010,23 +3020,72 @@ export default function AdminPage() {
 
   const onView = useCallback((a: Article) => setViewing(a), []);
   const onDelete = useCallback((a: Article) => setPendingDelete(a), []);
-  const onRestore = useCallback((a: Article) => {
-    setDeletedArticles((arr) => arr.filter((x) => x.id !== a.id));
-    setArticles((arr) => [a, ...arr]);
-    setCounts((c) => ({ ...c, articles: c.articles + 1 }));
-  }, []);
+  const onRestore = useCallback(async (a: Article) => {
+    try {
+      const row = await restoreAdminArticle(a.id);
+      setDeletedArticles((arr) => arr.filter((x) => x.id !== a.id));
+      setArticles((arr) => [row ? normalizeArticle(row) : a, ...arr]);
+      setCounts((c) => ({ ...c, articles: c.articles + 1 }));
+      push("Article restored — it is live again", "success");
+    } catch (e: any) {
+      push("Restore failed: " + e.message, "error");
+    }
+  }, [push]);
+
+  const onPurge = useCallback(async (a: Article) => {
+    if (!window.confirm(`Permanently delete "${a.title}"? This cannot be undone.`)) return;
+    try {
+      await deleteAdminArticle(a.id, true);
+      setDeletedArticles((arr) => arr.filter((x) => x.id !== a.id));
+      push("Article permanently deleted", "success");
+    } catch (e: any) {
+      push("Delete failed: " + e.message, "error");
+    }
+  }, [push]);
+
+  const queueActions = {
+    add: async (title: string, category: string) => {
+      try {
+        const { item } = await queueApi<{ item: QueueTopic }>("POST", { title, category });
+        if (item) setQueue((q) => [...q, item]);
+      } catch (e: any) {
+        push("Could not add topic: " + e.message, "error");
+      }
+    },
+    move: async (index: number, dir: number) => {
+      const j = index + dir;
+      if (j < 0 || j >= queue.length) return;
+      const next = [...queue];
+      [next[index], next[j]] = [next[j], next[index]];
+      setQueue(next);
+      try {
+        await queueApi("PATCH", { order: next.map((t) => t.id) });
+      } catch (e: any) {
+        setQueue(queue);
+        push("Could not reorder: " + e.message, "error");
+      }
+    },
+    remove: async (id: string) => {
+      setQueue((q) => q.filter((t) => t.id !== id));
+      try {
+        await queueApi("DELETE", undefined, `?id=${encodeURIComponent(id)}`);
+      } catch (e: any) {
+        push("Could not remove topic: " + e.message, "error");
+      }
+    },
+  };
 
   const confirmDelete = useCallback(async () => {
     const a = pendingDelete;
     setPendingDelete(null);
     if (!a) return;
     setArticles((arr) => arr.filter((x) => x.id !== a.id));
-    setDeletedArticles((arr) => [{ ...a, deletedAt: new Date() } as Article, ...arr].slice(0, 20));
+    setDeletedArticles((arr) => [{ ...a, raw: { ...a.raw, deleted_at: new Date().toISOString() } } as Article, ...arr].slice(0, 20));
     const idStr = String(a.id);
     if (idStr.indexOf("local-") !== 0) {
       try {
         await deleteAdminArticle(a.id);
-        push("Article deleted", "success");
+        push("Article hidden — restore it from Recently Deleted", "success");
       } catch (e: any) {
         setDeletedArticles((arr) => arr.filter((x) => x.id !== a.id));
         setArticles((arr) => [a, ...arr]);
@@ -3093,11 +3152,12 @@ export default function AdminPage() {
     counts,
     loading,
     queue,
-    setQueue,
+    queueActions,
     setTab,
     onView,
     onDelete,
     onRestore,
+    onPurge,
     onPublish,
     push,
     refresh: () => {
@@ -3371,7 +3431,7 @@ export default function AdminPage() {
         <ConfirmDialog
           open={!!pendingDelete}
           title="Delete this article?"
-          body={pendingDelete ? `"${pendingDelete.title}" will be permanently removed. This can't be undone.` : ""}
+          body={pendingDelete ? `"${pendingDelete.title}" will be hidden from the blog. You can restore it from Recently Deleted.` : ""}
           onConfirm={confirmDelete}
           onCancel={() => setPendingDelete(null)}
         />

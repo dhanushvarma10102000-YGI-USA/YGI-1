@@ -32,12 +32,13 @@ function textDescription(article: Article | null) {
 export async function generateMetadata({ params }: MetadataProps): Promise<Metadata> {
   const { slug } = await params;
   const article = await getArticle(slug);
-  const title = `${article?.title || titleFromSlug(slug)} | ${SITE_NAME}`;
+  const title = article?.title || titleFromSlug(slug);
   const description = textDescription(article);
   const url = absoluteUrl(`/blog/${slug}`);
 
   return {
-    title,
+    // The root title template doesn't reach this segment, so add the site name once here.
+    title: { absolute: `${title} | ${SITE_NAME}` },
     description,
     keywords: article?.category
       ? [article.category, "international students USA", "F1 visa", SITE_NAME]
